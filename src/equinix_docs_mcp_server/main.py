@@ -195,8 +195,13 @@ class EquinixMCPServer:
         self._apply_catalog_transform()
 
     def _register_api_providers(self) -> None:
-        """Register one OpenAPI provider per enabled API family."""
+        """Register one OpenAPI provider per enabled API family.
+
+        A family whose spec fails to parse is skipped (and recorded in
+        ``failed_providers``) rather than aborting server startup.
+        """
         assert self.mcp is not None
+        self.failed_providers: dict[str, str] = {}
 
         for api_name, api_config in self.config.apis.items():
             if not api_config.enabled:
@@ -205,13 +210,19 @@ class EquinixMCPServer:
             spec = self.spec_manager.get_provider_spec(api_name)
             if not spec:
                 logger.warning(f"No cached spec for API '{api_name}'; skipping")
+                self.failed_providers[api_name] = "no cached spec"
                 continue
 
-            provider = OpenAPIProvider(
-                openapi_spec=spec,
-                client=self._build_api_client(api_config),
-                tags={"equinix", api_name},
-            )
+            try:
+                provider = OpenAPIProvider(
+                    openapi_spec=spec,
+                    client=self._build_api_client(api_config),
+                    tags={"equinix", api_name},
+                )
+            except Exception as e:
+                logger.error(f"Failed to build provider for '{api_name}': {e}")
+                self.failed_providers[api_name] = str(e)
+                continue
             # The namespace yields spec-conformant tool names like
             # "metal_findPlans" and guarantees per-server uniqueness across
             # API families.

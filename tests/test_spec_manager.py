@@ -121,3 +121,54 @@ def test_apply_autogen_operation_ids_uniqueness(spec_manager):
     spec_manager._apply_autogen_operation_ids(spec)
 
     assert spec["paths"]["/other/things"]["get"]["operationId"] == "listThings2"
+
+
+def test_sanitize_schema_quirks(spec_manager):
+    """Recurring authoring bugs found by scripts/vet_specs.py are repaired."""
+    spec = {
+        "paths": {
+            "/download": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/octet-stream": {"schema": {"type": "file"}}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "Ern": {
+                    "type": "string",
+                    "pattern": "^ern:(?<cloud>[^:]+):(?<lookbehind>x)$",
+                },
+                "Lookbehind": {"type": "string", "pattern": "(?<=a)b(?<!c)"},
+                "Bounded": {
+                    "type": "integer",
+                    "maximum": 10,
+                    "exclusiveMaximum": True,
+                },
+                "BoundedFalse": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "exclusiveMinimum": False,
+                },
+            }
+        },
+    }
+
+    spec_manager._sanitize_schema_quirks(spec)
+
+    schemas = spec["components"]["schemas"]
+    file_schema = spec["paths"]["/download"]["get"]["responses"]["200"]["content"][
+        "application/octet-stream"
+    ]["schema"]
+    assert file_schema == {"type": "string", "format": "binary"}
+    assert schemas["Ern"]["pattern"] == "^ern:(?P<cloud>[^:]+):(?P<lookbehind>x)$"
+    # Lookbehind/lookahead syntax is untouched
+    assert schemas["Lookbehind"]["pattern"] == "(?<=a)b(?<!c)"
+    assert schemas["Bounded"] == {"type": "integer", "maximum": 10}
+    assert schemas["BoundedFalse"] == {"type": "integer", "minimum": 1}

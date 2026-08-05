@@ -138,6 +138,10 @@ class SpecManager:
         except Exception as e:
             logger.debug(f"Could not apply autogen operationIds: {e}")
 
+        # Repair recurring authoring bugs that make otherwise-valid specs
+        # unparseable (found across the api-catalog by scripts/vet_specs.py).
+        self._sanitize_schema_quirks(merged_spec)
+
         # Ensure configured security scheme exists BEFORE normalization,
         # so operations can reference the right scheme.
         merged_spec.setdefault("components", {})
@@ -527,6 +531,45 @@ class SpecManager:
 
                 op["operationId"] = candidate
                 existing.add(candidate)
+
+    # ECMAScript named group syntax "(?<name>" that Python's regex validator
+    # rejects; must not touch lookbehinds "(?<=" / "(?<!".
+    _JS_NAMED_GROUP = re.compile(r"\(\?<(?![=!])")
+
+    def _sanitize_schema_quirks(self, node: Any) -> None:
+        """Fix common spec authoring bugs in place.
+
+        Found across the api-catalog by scripts/vet_specs.py:
+        - `type: file` is Swagger 2.0 syntax; several catalog specs declare
+          openapi 3.0 but still use it (billingv1, reports). OpenAPI 3
+          expresses binary payloads as string/binary.
+        - `pattern` regexes with ECMAScript named groups `(?<name>...)`
+          (access): JSON Schema validators built on Python's re require
+          `(?P<name>...)`.
+        - Boolean `exclusiveMaximum`/`exclusiveMinimum` (attachments) are
+          JSON Schema draft-4 syntax; tool schemas are validated as 2020-12
+          where they must be numeric. Converting to the numeric form would
+          break the OpenAPI 3.0 document parse (a catch-22 between the two
+          dialects), so drop the boolean and keep the inclusive bound.
+        """
+        if isinstance(node, dict):
+            if node.get("type") == "file":
+                node["type"] = "string"
+                node["format"] = "binary"
+
+            pattern = node.get("pattern")
+            if isinstance(pattern, str) and "(?<" in pattern:
+                node["pattern"] = self._JS_NAMED_GROUP.sub("(?P<", pattern)
+
+            for exclusive in ("exclusiveMaximum", "exclusiveMinimum"):
+                if isinstance(node.get(exclusive), bool):
+                    node.pop(exclusive)
+
+            for value in node.values():
+                self._sanitize_schema_quirks(value)
+        elif isinstance(node, list):
+            for item in node:
+                self._sanitize_schema_quirks(item)
 
     def get_provider_spec(self, api_name: str) -> Optional[Dict[str, Any]]:
         """Load one API family's spec, ready for provider registration.
