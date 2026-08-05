@@ -22,6 +22,14 @@ This project is an experimental Model Context Protocol (MCP) server, for local u
 Any Equinix API specification can be added to the configuration file but operations may need to be filtered and overlays may be needed for this tool to use the spec in the MCP server.
 The `config/apis.yaml` file defines API specifications that have been used during development to test behavior.
 
+To find catalog APIs not yet configured, run:
+
+```bash
+equinix-docs-mcp-server --discover-apis
+```
+
+This scans [docs.equinix.com/api-catalog](https://docs.equinix.com/api-catalog) for `openapi.yaml` specs and prints ready-to-paste `apis.yaml` entries for anything new (AsyncAPI-only entries such as `emgv1` are reported but skipped). Operations missing an `operationId` get one synthesized automatically during spec processing.
+
 ## Quick Start
 
 ### Installation
