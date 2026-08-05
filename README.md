@@ -34,66 +34,82 @@ This scans [docs.equinix.com/api-catalog](https://docs.equinix.com/api-catalog) 
 
 ### Installation
 
+Requires Python 3.13 or later.
+
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
-Or replace `.venv/bin/python` with `uvx` (if preferred) and change the commands examples and configuration blocks accordingly.
+(Or with [uv](https://docs.astral.sh/uv/): `uv venv && uv pip install -e .`)
+
+This installs the `equinix-docs-mcp-server` console script into the virtual environment. The server reads `config/apis.yaml` and writes its `cache/` directory relative to the working directory, so run it (or configure your MCP client to run it) from the repository root.
+
+## Adding the MCP Server to Claude Code
+
+From the repository root:
+
+```bash
+claude mcp add --env EQUINIX_CLIENT_ID=your_client_id \
+  --env EQUINIX_CLIENT_SECRET=your_client_secret \
+  --env EQUINIX_METAL_TOKEN=your_metal_token \
+  --transport stdio equinix -- .venv/bin/python -m equinix_docs_mcp_server.main
+```
+
+On Windows use `.venv\Scripts\python.exe`. Add `--scope project` to share the configuration with the team via a `.mcp.json` file (omit the `--env` flags in that case and export the credentials in your shell instead, so secrets stay out of the committed file). Note the flag ordering: another option (here `--transport stdio`) must sit between the last `--env` and the server name, or the CLI parses the name as another KEY=value pair.
+
+For more details, see the [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
 
 ## Adding the MCP Server to VS Code
 
-After cloning this repository, you can add the Equinix MCP server to VS Code with a single command:
-
-### Using Python Virtual Environment (.venv)
+After cloning and installing, add the server with a single command from the repository root (the JSON is one server object, with the name inline):
 
 ```bash
-code --add-mcp '{
- "servers": {
-  "equinix": {
-   "type": "stdio",
-   "command": ".venv/bin/python",
-   "args": [
-    "-m",
-    "equinix_docs_mcp_server.main"
-   ],
-   "cwd": "'$PWD'",
-   "env": {
-    "PYTHONPATH": "'$PWD'$'/src",
-    "EQUINIX_CLIENT_ID": "$\{input:EQUINIX_CLIENT_ID\}",
-    "EQUINIX_CLIENT_SECRET": "$\{input:EQUINIX_CLIENT_SECRET\}",
-    "EQUINIX_METAL_TOKEN": "$\{input:EQUINIX_METAL_TOKEN\}"
-   },
-   "disabled": false
-  }
- },
- "inputs": [
-  {
-   "type": "promptString",
-   "id": "EQUINIX_CLIENT_ID",
-   "description": "Equinix Client ID",
-   "password": true
-  },
-  {
-   "type": "promptString",
-   "id": "EQUINIX_CLIENT_SECRET",
-   "description": "Equinix Client Secret",
-   "password": true
-  },
-  {
-   "type": "promptString",
-   "id": "EQUINIX_METAL_TOKEN",
-   "description": "Equinix Metal API Token",
-   "password": true
-  }
- ]
-}}'
+code --add-mcp '{"name":"equinix","type":"stdio","command":"'$PWD'/.venv/bin/python","args":["-m","equinix_docs_mcp_server.main"],"cwd":"'$PWD'"}'
 ```
 
-> **Note:** The configuration is stored in `.vscode/mcp.json` per project. You do not need to set `cwd` unless you have a special setup.
+Or create `.vscode/mcp.json` in the repository to prompt for credentials on first use:
 
-For more details, see [VS Code MCP Server documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
+```json
+{
+  "servers": {
+    "equinix": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["-m", "equinix_docs_mcp_server.main"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "EQUINIX_CLIENT_ID": "${input:equinix-client-id}",
+        "EQUINIX_CLIENT_SECRET": "${input:equinix-client-secret}",
+        "EQUINIX_METAL_TOKEN": "${input:equinix-metal-token}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "equinix-client-id",
+      "description": "Equinix Client ID",
+      "password": true
+    },
+    {
+      "type": "promptString",
+      "id": "equinix-client-secret",
+      "description": "Equinix Client Secret",
+      "password": true
+    },
+    {
+      "type": "promptString",
+      "id": "equinix-metal-token",
+      "description": "Equinix Metal API Token",
+      "password": true
+    }
+  ]
+}
+```
+
+For more details, see the [VS Code MCP Server documentation](https://code.visualstudio.com/docs/agent-customization/mcp-servers).
 
 ## Usage
 
@@ -132,21 +148,21 @@ The server is configured via `config/apis.yaml`. This file defines:
 ```yaml
 apis:
   metal:
-    url: "https://docs.equinix.com/api-catalog/metalv1/openapi.yaml"
-    overlay: "overlays/metal.yaml"
     auth_type: "metal_token"
     service_name: "metal"
-    version: "v1"
-    # include: []
-    # exclude: [".*"]
+    # include: []      # regexes of operationIds to expose (all when omitted)
+    # exclude: []      # regexes of operationIds to hide
     # enabled: true
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/metalv1/openapi.yaml"
+        overlay: "overlays/metal.yaml"
 
   fabric:
-    url: "https://docs.equinix.com/api-catalog/fabricv4/openapi.yaml"
-    overlay: "overlays/fabric.yaml"
     auth_type: "client_credentials"
     service_name: "fabric"
-    version: "v4"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/fabricv4/openapi.yaml"
+        overlay: "overlays/fabric.yaml"
 ```
 
 ## Overlay Files
