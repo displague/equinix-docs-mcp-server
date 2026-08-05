@@ -24,6 +24,6 @@ workflows:
     description: Retrieve Network Edge metros
     steps:
       - stepId: get_metros
-        operationId: ne.getMetrosUsingGET
+        operationId: ne.getMetros
         outputs:
           metros: "{{ steps.get_metros.outputs.data }}"

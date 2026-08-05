@@ -9,7 +9,7 @@ from equinix_docs_mcp_server.config import APIConfig, Config
 
 def test_config_loading():
     """Test loading configuration from YAML file."""
-    config = Config.load("config/apis.yaml")
+    config = Config.load()
 
     assert config is not None
     assert len(config.apis) > 0
@@ -19,7 +19,7 @@ def test_config_loading():
 
 def test_api_config_structure():
     """Test API configuration structure."""
-    config = Config.load("config/apis.yaml")
+    config = Config.load()
 
     metal_config = config.get_api_config("metal")
     assert metal_config is not None
@@ -34,7 +34,7 @@ def test_api_config_structure():
 
 def test_config_api_names():
     """Test getting API names."""
-    config = Config.load("config/apis.yaml")
+    config = Config.load()
 
     api_names = config.get_api_names()
     assert isinstance(api_names, list)
@@ -46,7 +46,7 @@ def test_config_api_names():
 
 def test_config_save_load_roundtrip(tmp_path):
     """Test saving and loading configuration."""
-    config = Config.load("config/apis.yaml")
+    config = Config.load()
 
     # Save to temporary file
     temp_config_path = tmp_path / "test_config.yaml"

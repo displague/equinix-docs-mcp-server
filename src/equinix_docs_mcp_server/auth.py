@@ -5,7 +5,7 @@ import logging
 import os
 from typing import Dict, Optional
 
-import httpx
+import httpx2
 from pydantic import BaseModel
 
 from .config import Config
@@ -134,7 +134,7 @@ class AuthManager:
             f"Token request data: {{'grant_type': 'client_credentials', 'client_id': '{self.client_id}', 'client_secret': '[REDACTED]'}}"
         )
 
-        async with httpx.AsyncClient() as client:
+        async with httpx2.AsyncClient() as client:
             try:
                 logger.debug("Sending token request...")
                 response = await client.post(token_url, headers=headers, json=data)

@@ -680,14 +680,17 @@ class ArazzoManager:
 
     async def _read_spec(self, path_or_url: str) -> str:
         if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
-            import httpx
+            import httpx2
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx2.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(path_or_url)
                 resp.raise_for_status()
                 return resp.text
-        # Local file
+        # Local file; relative paths resolve against the config's base
+        # directory so packaged workflow specs are found from any cwd
         path = Path(path_or_url)
+        if not path.exists():
+            path = self.config.resolve_path(path_or_url)
         text = path.read_text()
         return text
 

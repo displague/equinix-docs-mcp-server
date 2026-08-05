@@ -1,9 +1,8 @@
 """Test documentation manager functionality."""
 
-from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
+import httpx2
 import pytest
 
 from equinix_docs_mcp_server.config import Config
@@ -13,7 +12,7 @@ from equinix_docs_mcp_server.docs import DocsManager
 @pytest.fixture
 def config():
     """Load test configuration."""
-    return Config.load("config/apis.yaml")
+    return Config.load()
 
 
 @pytest.fixture
@@ -170,26 +169,35 @@ async def test_find_docs(docs_manager):
 
 
 @pytest.mark.asyncio
-@patch("equinix_docs_mcp_server.docs.httpx.AsyncClient")
+@patch("equinix_docs_mcp_server.docs.httpx2.AsyncClient")
 @patch("equinix_docs_mcp_server.docs.aiofiles.open")
 @patch("equinix_docs_mcp_server.docs.Path.exists")
-async def test_search_docs(mock_exists, mock_aiofiles, mock_httpx, docs_manager):
+@patch("equinix_docs_mcp_server.docs.SearchClient")
+async def test_search_docs(
+    mock_search_client_cls, mock_exists, mock_aiofiles, mock_httpx, docs_manager
+):
     """Test documentation search using lunr search."""
     # Mock the cache file doesn't exist initially
     mock_exists.return_value = False
 
     # Mock HTTP response
-    mock_response = AsyncMock()
-    mock_response.raise_for_status = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
     mock_response.text = "[]"  # Empty search index for test
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_httpx.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_httpx.return_value.__aexit__ = AsyncMock(return_value=None)
 
     # Mock file operations
     mock_file = AsyncMock()
     mock_aiofiles.return_value.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_aiofiles.return_value.__aexit__ = AsyncMock()
+
+    mock_search_client = MagicMock()
+    mock_search_client.search.return_value = []
+    mock_search_client_cls.return_value = mock_search_client
 
     # Test search - should attempt to fetch and cache the index
     result = await docs_manager.search_docs("metal")
@@ -198,11 +206,10 @@ async def test_search_docs(mock_exists, mock_aiofiles, mock_httpx, docs_manager)
     mock_client.get.assert_called_once_with(
         "https://docs.equinix.com/search-index.json"
     )
+    mock_search_client.load.assert_called_once()
 
     # Should contain error message about search results
-    assert (
-        "No search results found" in result or "Error searching documentation" in result
-    )
+    assert "No search results found" in result
 
 
 @pytest.mark.asyncio
@@ -223,21 +230,23 @@ async def test_get_docs_summary(docs_manager):
 
 
 @pytest.mark.asyncio
-@patch("equinix_docs_mcp_server.docs.httpx.AsyncClient")
+@patch("equinix_docs_mcp_server.docs.httpx2.AsyncClient")
 async def test_fetch_doc_success(mock_httpx, docs_manager):
     """Test successful document fetching."""
     # Mock HTTP response
-    mock_response = AsyncMock()
-    mock_response.raise_for_status = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
     mock_response.text = "# Test Document\n\nThis is test content."
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_httpx.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_httpx.return_value.__aexit__ = AsyncMock()
+    mock_httpx.return_value.__aexit__ = AsyncMock(return_value=None)
 
     # Test with full URL without .md extension
-    result = await docs_manager.fetch_doc("https://docs.equinix.com/metal/getting-started")
+    result = await docs_manager.fetch_doc(
+        "https://docs.equinix.com/metal/getting-started"
+    )
 
     # Should have called with .md extension
     mock_client.get.assert_called_once()
@@ -250,18 +259,18 @@ async def test_fetch_doc_success(mock_httpx, docs_manager):
 
 
 @pytest.mark.asyncio
-@patch("equinix_docs_mcp_server.docs.httpx.AsyncClient")
+@patch("equinix_docs_mcp_server.docs.httpx2.AsyncClient")
 async def test_fetch_doc_with_md_extension(mock_httpx, docs_manager):
     """Test fetching a document that already has .md extension."""
     # Mock HTTP response
-    mock_response = AsyncMock()
-    mock_response.raise_for_status = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
     mock_response.text = "# Another Test\n\nContent here."
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_httpx.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_httpx.return_value.__aexit__ = AsyncMock()
+    mock_httpx.return_value.__aexit__ = AsyncMock(return_value=None)
 
     # Test with URL that already has .md extension
     result = await docs_manager.fetch_doc("https://docs.equinix.com/fabric/overview.md")
@@ -275,18 +284,18 @@ async def test_fetch_doc_with_md_extension(mock_httpx, docs_manager):
 
 
 @pytest.mark.asyncio
-@patch("equinix_docs_mcp_server.docs.httpx.AsyncClient")
+@patch("equinix_docs_mcp_server.docs.httpx2.AsyncClient")
 async def test_fetch_doc_relative_url(mock_httpx, docs_manager):
     """Test fetching with a relative URL."""
     # Mock HTTP response
-    mock_response = AsyncMock()
-    mock_response.raise_for_status = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
     mock_response.text = "# Relative URL Test"
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_httpx.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_httpx.return_value.__aexit__ = AsyncMock()
+    mock_httpx.return_value.__aexit__ = AsyncMock(return_value=None)
 
     # Test with relative URL
     result = await docs_manager.fetch_doc("metal/api-reference")
@@ -298,21 +307,24 @@ async def test_fetch_doc_relative_url(mock_httpx, docs_manager):
 
 
 @pytest.mark.asyncio
-@patch("equinix_docs_mcp_server.docs.httpx.AsyncClient")
+@patch("equinix_docs_mcp_server.docs.httpx2.AsyncClient")
 async def test_fetch_doc_http_error(mock_httpx, docs_manager):
     """Test handling of HTTP errors when fetching documents."""
     # Mock HTTP error response
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.status_code = 404
-    mock_error = httpx.HTTPStatusError(
-        "Not Found", request=AsyncMock(), response=mock_response
+    mock_error = httpx2.HTTPStatusError(
+        "Not Found", request=MagicMock(), response=mock_response
     )
-    mock_response.raise_for_status = AsyncMock(side_effect=mock_error)
+    # raise_for_status is synchronous in httpx2; an AsyncMock here would only
+    # raise when awaited, which fetch_doc never does
+    mock_response.raise_for_status = MagicMock(side_effect=mock_error)
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_httpx.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_httpx.return_value.__aexit__ = AsyncMock()
+    # __aexit__ must return falsy, or the async-with suppresses the exception
+    mock_httpx.return_value.__aexit__ = AsyncMock(return_value=False)
 
     result = await docs_manager.fetch_doc("https://docs.equinix.com/nonexistent")
 
@@ -323,14 +335,15 @@ async def test_fetch_doc_http_error(mock_httpx, docs_manager):
 
 
 @pytest.mark.asyncio
-@patch("equinix_docs_mcp_server.docs.httpx.AsyncClient")
+@patch("equinix_docs_mcp_server.docs.httpx2.AsyncClient")
 async def test_fetch_doc_request_error(mock_httpx, docs_manager):
     """Test handling of request errors when fetching documents."""
     # Mock request error
     mock_client = AsyncMock()
-    mock_client.get = AsyncMock(side_effect=httpx.RequestError("Connection failed"))
+    mock_client.get = AsyncMock(side_effect=httpx2.RequestError("Connection failed"))
     mock_httpx.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_httpx.return_value.__aexit__ = AsyncMock()
+    # __aexit__ must return falsy, or the async-with suppresses the exception
+    mock_httpx.return_value.__aexit__ = AsyncMock(return_value=False)
 
     result = await docs_manager.fetch_doc("https://docs.equinix.com/test")
 

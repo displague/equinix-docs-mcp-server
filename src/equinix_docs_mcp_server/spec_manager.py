@@ -9,14 +9,15 @@ specification.
 import asyncio
 import collections.abc
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import httpx
+import httpx2
 import yaml
 from openapi_spec_validator import validate
 
-from .config import APIConfig, Config
+from .config import APIConfig, Config, cache_root
 from .openapi_overlays.overlay_manager import OverlayManager
 from .swagger2openapi.converter import Swagger2OpenAPIConverter
 
@@ -62,12 +63,14 @@ def _update_references(obj: Any) -> Any:
 class SpecManager:
     """Manages fetching, caching, and merging of OpenAPI specifications."""
 
-    def __init__(self, config: Config, cache_dir: str = "cache/specs"):
+    def __init__(self, config: Config, cache_dir: Optional[str] = None):
         self.config = config
-        self.cache_dir = Path(cache_dir)
+        self.cache_dir = Path(cache_dir) if cache_dir else cache_root() / "specs"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.overlay_manager = OverlayManager(config)
-        self.http_client = httpx.AsyncClient()
+        # Spec URLs on docs.equinix.com move behind 301s as APIs are
+        # reorganized (e.g. the smartview family), so follow redirects.
+        self.http_client = httpx2.AsyncClient(follow_redirects=True)
         self.converter = Swagger2OpenAPIConverter()
 
     async def update_specs(self) -> None:
@@ -127,6 +130,13 @@ class SpecManager:
             return
 
         merged_spec = self._merge_api_spec(base_spec, api_config)
+
+        # Some specs (e.g. workvisit) omit operationIds; synthesize them so
+        # every operation can become a tool.
+        try:
+            self._apply_autogen_operation_ids(merged_spec)
+        except Exception as e:
+            logger.debug(f"Could not apply autogen operationIds: {e}")
 
         # Ensure configured security scheme exists BEFORE normalization,
         # so operations can reference the right scheme.
@@ -207,7 +217,7 @@ class SpecManager:
             self.save_cached_spec(spec_key, spec)
             logger.info(f"Successfully fetched and validated spec from {url}")
             return spec
-        except httpx.HTTPStatusError as e:
+        except httpx2.HTTPStatusError as e:
             logger.error(f"HTTP error fetching spec from {url}: {e}")
         except yaml.YAMLError as e:
             logger.error(f"YAML parsing error for spec from {url}: {e}")
@@ -228,8 +238,8 @@ class SpecManager:
 
         for spec_source in api_config.specs:
             if spec_source.overlay:
-                # Overlays are specified relative to the project root in config
-                overlay_path = Path(spec_source.overlay)
+                # Overlay paths resolve against the config's base directory
+                overlay_path = self.config.resolve_path(spec_source.overlay)
                 if overlay_path.exists():
                     with open(overlay_path, "r") as f:
                         overlay = yaml.safe_load(f)
@@ -450,6 +460,87 @@ class SpecManager:
             merged_spec.pop("$defs", None)
 
         return merged_spec
+
+    def _apply_autogen_operation_ids(self, spec: Dict[str, Any]) -> None:
+        """Generate operationId values for operations that lack them.
+
+        Rules:
+        - GET on a path ending in a parameter -> get{CamelCase(basename)},
+          otherwise list{CamelCase(basename)}.
+        - Other methods -> {verb}{CamelCase(basename)}.
+        - Basename is the last non-parameter path segment
+          (e.g. /a/b/{id} -> b).
+        - Uniqueness is ensured by appending numeric suffixes.
+        """
+        paths = spec.get("paths")
+        if not isinstance(paths, dict):
+            return
+
+        def camel(s: str) -> str:
+            parts = re.split(r"[^A-Za-z0-9]+", s)
+            return "".join(p.capitalize() for p in parts if p)
+
+        def basename_and_param_flag(p: str) -> tuple[str, bool]:
+            segs = [seg for seg in p.split("/") if seg]
+            if not segs:
+                return ("Root", False)
+            last = segs[-1]
+            is_param = bool(re.match(r"^{.+}$", last))
+            if is_param:
+                base = segs[-2] if len(segs) >= 2 else "Root"
+            else:
+                base = last
+            return (base, is_param)
+
+        methods_allowed = {"get", "put", "post", "delete", "patch", "options", "head"}
+
+        existing = set()
+        for methods in paths.values():
+            if not isinstance(methods, dict):
+                continue
+            for op in methods.values():
+                if isinstance(op, dict) and op.get("operationId"):
+                    existing.add(op["operationId"])
+
+        for p, methods in paths.items():
+            if not isinstance(methods, dict):
+                continue
+            for method, op in methods.items():
+                if method.lower() not in methods_allowed or not isinstance(op, dict):
+                    continue
+                if op.get("operationId"):
+                    continue
+
+                base, ends_with_param = basename_and_param_flag(p)
+                if method.lower() == "get":
+                    candidate = (
+                        f"get{camel(base)}" if ends_with_param else f"list{camel(base)}"
+                    )
+                else:
+                    candidate = f"{method.lower()}{camel(base)}"
+
+                if candidate in existing:
+                    i = 2
+                    while f"{candidate}{i}" in existing:
+                        i += 1
+                    candidate = f"{candidate}{i}"
+
+                op["operationId"] = candidate
+                existing.add(candidate)
+
+    def get_provider_spec(self, api_name: str) -> Optional[Dict[str, Any]]:
+        """Load one API family's spec, ready for provider registration.
+
+        Applies the configured include/exclude operationId filters but leaves
+        operationIds and component schemas untouched: per-family namespacing
+        is handled at provider registration, not by rewriting the spec.
+        """
+        spec = self.load_merged_spec(api_name)
+        if not spec:
+            return None
+        if "paths" in spec:
+            spec["paths"] = self._filter_paths_by_operation_id(api_name, spec["paths"])
+        return spec
 
     def get_merged_spec_path(self, api_name: str) -> Path:
         """Get the path to the merged spec file."""

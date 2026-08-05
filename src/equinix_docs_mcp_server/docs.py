@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 import aiofiles
-import httpx
+import httpx2
 
-from .config import Config
+from .config import Config, cache_root
 from .lunr_search.search_client import Client as SearchClient
 
 
@@ -21,16 +21,25 @@ class DocsManager:
         self.config = config
         self.sitemap_cache: List[Dict[str, str]] = []
 
+    def _index_cache_path(self) -> Path:
+        """Filesystem location of the docs index cache.
+
+        Relative config values resolve under the user cache directory so the
+        server does not depend on the working directory.
+        """
+        p = Path(self.config.docs.cache_path)
+        return p if p.is_absolute() else cache_root() / p
+
     async def update_sitemap(self) -> None:
         """Update the sitemap cache from the remote sitemap."""
         sitemap_url = self.config.docs.sitemap_url
 
-        async with httpx.AsyncClient() as client:
+        async with httpx2.AsyncClient() as client:
             response = await client.get(sitemap_url)
             response.raise_for_status()
 
             # Save to cache file
-            cache_path = Path(self.config.docs.cache_path)
+            cache_path = self._index_cache_path()
             cache_path.parent.mkdir(parents=True, exist_ok=True)
 
             async with aiofiles.open(cache_path, "w") as f:
@@ -38,6 +47,78 @@ class DocsManager:
 
             # Parse the sitemap
             await self._parse_sitemap(response.text)
+
+    async def update_index(self) -> None:
+        """Update the documentation index (llms.txt or sitemap)."""
+        # Try llms.txt first
+        llms_txt_url = self.config.docs.llms_txt_url
+        try:
+            async with httpx2.AsyncClient() as client:
+                response = await client.get(llms_txt_url)
+                if response.status_code == 200:
+                    await self._parse_llms_txt(response.text)
+                    # Cache it
+                    cache_path = self._index_cache_path().with_suffix(".txt")
+                    cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    async with aiofiles.open(cache_path, "w") as f:
+                        await f.write(response.text)
+                    return
+        except Exception as e:
+            # Log error but continue to sitemap
+            print(f"Failed to fetch llms.txt: {e}")
+
+        # Fallback to sitemap
+        await self.update_sitemap()
+
+    async def _parse_llms_txt(self, content: str) -> None:
+        """Parse llms.txt content."""
+        self.sitemap_cache = []
+        current_category = "General"
+
+        for line in content.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+
+            # Check for headers as categories
+            if line.startswith("#"):
+                current_category = line.lstrip("#").strip()
+                continue
+
+            # Check for links: - [Title](url) - Description
+            if line.startswith("-") and "[" in line and "](" in line:
+                try:
+                    # Extract title and URL
+                    start_bracket = line.find("[")
+                    end_bracket = line.find("]")
+                    start_paren = line.find("(", end_bracket)
+                    end_paren = line.find(")", start_paren)
+
+                    if (
+                        start_bracket != -1
+                        and end_bracket != -1
+                        and start_paren != -1
+                        and end_paren != -1
+                    ):
+                        title = line[start_bracket + 1 : end_bracket]
+                        url = line[start_paren + 1 : end_paren]
+
+                        # Extract description if present (after the link)
+                        description = line[end_paren + 1 :].strip(" -:")
+
+                        self.sitemap_cache.append(
+                            {
+                                "url": url,
+                                "title": title,
+                                "category": current_category,
+                                "description": description,
+                                "lastmod": "",
+                                "changefreq": "",
+                                "priority": "",
+                            }
+                        )
+                except Exception:
+                    continue
 
     async def _parse_sitemap(self, sitemap_xml: str) -> None:
         """Parse the sitemap XML and extract URL information."""
@@ -111,7 +192,7 @@ class DocsManager:
     async def list_docs(self, filter_term: Optional[str] = None) -> str:
         """List documentation with optional filtering."""
         if not self.sitemap_cache:
-            await self._load_cached_sitemap()
+            await self._load_cached_index()
 
         filtered_docs = self.sitemap_cache
 
@@ -172,7 +253,8 @@ class DocsManager:
         for category, docs in sorted(categories.items()):
             result.append(f"## {category}\n")
             for doc in docs[:10]:  # Limit to 10 per category
-                result.append(f"- **{doc['title']}**: {doc['url']}")
+                desc = f" - {doc['description']}" if doc.get("description") else ""
+                result.append(f"- **{doc['title']}**: {doc['url']}{desc}")
 
             if len(docs) > 10:
                 result.append(f"  ... and {len(docs) - 10} more")
@@ -243,7 +325,7 @@ class DocsManager:
     async def search_docs(self, query: str, limit: int = 8) -> str:
         """Search documentation using lunr search against indexed content."""
         search_index_url = "https://docs.equinix.com/search-index.json"
-        cache_dir = Path("cache/search")
+        cache_dir = cache_root() / "search"
         cache_file = cache_dir / "search-index.json"
 
         # Ensure cache directory exists
@@ -252,7 +334,7 @@ class DocsManager:
         # Check if we need to fetch the search index
         if not cache_file.exists():
             try:
-                async with httpx.AsyncClient() as client:
+                async with httpx2.AsyncClient() as client:
                     response = await client.get(search_index_url)
                     response.raise_for_status()
 
@@ -294,7 +376,7 @@ class DocsManager:
 
     async def _load_cached_sitemap(self) -> None:
         """Load sitemap from cache file if available."""
-        cache_path = Path(self.config.docs.cache_path)
+        cache_path = self._index_cache_path()
 
         if cache_path.exists():
             async with aiofiles.open(cache_path, "r") as f:
@@ -303,6 +385,19 @@ class DocsManager:
         else:
             # If no cache, update from remote
             await self.update_sitemap()
+
+    async def _load_cached_index(self) -> None:
+        """Load index from cache (llms.txt or sitemap)."""
+        # Try llms.txt cache first
+        llms_cache = self._index_cache_path().with_suffix(".txt")
+        if llms_cache.exists():
+            async with aiofiles.open(llms_cache, "r") as f:
+                content = await f.read()
+                await self._parse_llms_txt(content)
+                return
+
+        # Fallback to sitemap cache
+        await self._load_cached_sitemap()
 
     async def fetch_doc(self, url: str) -> str:
         """Fetch the markdown content of a documentation page.
@@ -326,16 +421,16 @@ class DocsManager:
             url = f"https://docs.equinix.com/{url.lstrip('/')}"
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx2.AsyncClient() as client:
                 response = await client.get(url, timeout=30.0)
                 response.raise_for_status()
 
                 # Return the markdown content
                 return response.text
 
-        except httpx.HTTPStatusError as e:
+        except httpx2.HTTPStatusError as e:
             return f"Error fetching document: HTTP {e.response.status_code} - {url}\n\nThe document may not be available in markdown format."
-        except httpx.RequestError as e:
+        except httpx2.RequestError as e:
             return f"Error fetching document: {str(e)}\n\nURL: {url}"
         except Exception as e:
             return f"Unexpected error fetching document: {str(e)}\n\nURL: {url}"
@@ -359,7 +454,7 @@ class DocsManager:
             result.append(f"- **{category}**: {count} documents")
 
         result.append(
-            f"\nLast updated: {Path(self.config.docs.cache_path).stat().st_mtime if Path(self.config.docs.cache_path).exists() else 'Never'}"
+            f"\nLast updated: {self._index_cache_path().stat().st_mtime if self._index_cache_path().exists() else 'Never'}"
         )
 
         return "\n".join(result)

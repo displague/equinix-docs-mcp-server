@@ -4,9 +4,6 @@ apis:
   metal:
     auth_type: "metal_token"
     service_name: "metal"
-    include:
-      - findPlans
-      - findMetros
     format:
       # Human-readable text format for plans - simplified and robust
       findPlans: |
@@ -46,12 +43,10 @@ apis:
   network-edge:
     auth_type: "client_credentials"
     service_name: "network-edge"
-    include:
-      - getMetrosUsingGET
     enabled: true
     format:
       # Human-readable metros listing with pagination
-      getMetrosUsingGET:
+      getMetros:
         - |
           "**Network Edge Metros**\n\n" +
           (.data | map(
@@ -79,10 +74,6 @@ apis:
   fabric:
     auth_type: "client_credentials"
     service_name: "fabric"
-    include:
-      - searchConnections
-      - searchProviders
-      - getMetros
     format:
       # Human-readable connection summary
       searchConnections:
@@ -167,16 +158,21 @@ apis:
   # SmartView APIs
   smartview:
     service_name: "smartview"
-    include:
-      - getLocationHierarchy
     specs:
-      - url: "https://docs.equinix.com/api-catalog/environmentalv1/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/environmentalv2/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/feed-subscriptionv2/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/hierarchyv1/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/ibx-assetsv1/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/powerv1/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/system-alertsv2/openapi.yaml"
+      # The former per-domain Smart View specs (environmentalv1/v2,
+      # feed-subscriptionv2, hierarchyv1, ibx-assetsv1, powerv1,
+      # system-alertsv2) all redirect to this consolidated spec.
+      - url: "https://docs.equinix.com/api-catalog/smartviewv2/openapi.yaml"
+
+  # Work Visit APIs
+  workvisit:
+    auth_type: "client_credentials"
+    service_name: "workvisit"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/workvisitv1/openapi.yaml"
+        overlay: "overlays/workvisitv1.yaml"
+      - url: "https://docs.equinix.com/api-catalog/workvisitsv2/openapi.yaml"
+        overlay: "overlays/workvisitsv2.yaml"
 
 # Authentication configuration
 auth:
@@ -191,7 +187,9 @@ auth:
 # Documentation configuration
 docs:
   sitemap_url: "https://docs.equinix.com/sitemap.xml"
-  cache_path: "cache/docs/sitemap_cache.xml"
+  # Relative cache paths resolve under the user cache directory
+  # (override the root with EQUINIX_MCP_CACHE_DIR)
+  cache_path: "docs/sitemap_cache.xml"
 arazzo:
    specs:
       - config/workflows.yaml

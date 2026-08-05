@@ -72,9 +72,9 @@ jobs:
         
     - name: Validate configuration
       run: |
-        python -c "from equinix_docs_mcp_server.config import Config; Config.load('config/apis.yaml')"
-        echo "✅ Configuration is valid"
-        
+        python -c "from equinix_docs_mcp_server.config import Config; Config.load()"
+        echo "✅ Packaged configuration is valid"
+
     - name: Test spec fetching (dry run)
       run: |
         # This would test spec fetching without actually running the server
@@ -82,11 +82,16 @@ jobs:
         import asyncio
         from equinix_docs_mcp_server.config import Config
         from equinix_docs_mcp_server.spec_manager import SpecManager
-        
+
         async def test():
-            config = Config.load('config/apis.yaml')
+            config = Config.load()
             manager = SpecManager(config)
+            for api_name, api in config.apis.items():
+                for spec in api.specs:
+                    if spec.overlay:
+                        overlay = config.resolve_path(spec.overlay)
+                        assert overlay.exists(), f'{api_name}: missing overlay {overlay}'
             print('✅ SpecManager initialization successful')
-        
+
         asyncio.run(test())
         "

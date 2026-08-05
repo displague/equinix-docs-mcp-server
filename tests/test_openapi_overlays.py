@@ -12,7 +12,7 @@ from equinix_docs_mcp_server.openapi_overlays import OverlayManager
 @pytest.fixture
 def config():
     """Load test configuration."""
-    return Config.load("config/apis.yaml")
+    return Config.load()
 
 
 @pytest.fixture
