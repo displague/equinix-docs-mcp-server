@@ -131,13 +131,14 @@ class EquinixMCPServer:
 
     def __init__(
         self,
-        config_path: str = "config/apis.yaml",
+        config_path: Optional[str] = None,
         tool_catalog: str = "search",
     ):
         """Initialize the server with configuration.
 
         Args:
-            config_path: Path to the apis.yaml configuration file.
+            config_path: Path to the apis.yaml configuration file; defaults
+                to the configuration bundled with the package.
             tool_catalog: How to expose the tool catalog — "search" (BM25
                 search transform, default), "code-mode" (experimental
                 sandboxed code execution), or "full" (every tool listed).
@@ -344,7 +345,10 @@ class EquinixMCPServer:
 
 @click.command()
 @click.option(
-    "--config", "-c", default="config/apis.yaml", help="Configuration file path"
+    "--config",
+    "-c",
+    default=None,
+    help="Configuration file path (defaults to the packaged config/apis.yaml)",
 )
 @click.option(
     "--update-specs",
@@ -378,7 +382,7 @@ class EquinixMCPServer:
     help="Set the logging level (default: INFO)",
 )
 def main(
-    config: str,
+    config: Optional[str],
     update_specs: bool,
     discover_apis: bool,
     tool_catalog: str,

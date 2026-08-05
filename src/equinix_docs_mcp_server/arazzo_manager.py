@@ -686,8 +686,11 @@ class ArazzoManager:
                 resp = await client.get(path_or_url)
                 resp.raise_for_status()
                 return resp.text
-        # Local file
+        # Local file; relative paths resolve against the config's base
+        # directory so packaged workflow specs are found from any cwd
         path = Path(path_or_url)
+        if not path.exists():
+            path = self.config.resolve_path(path_or_url)
         text = path.read_text()
         return text
 

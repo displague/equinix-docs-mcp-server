@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import aiofiles
 import httpx
 
-from .config import Config
+from .config import Config, cache_root
 from .lunr_search.search_client import Client as SearchClient
 
 
@@ -21,6 +21,15 @@ class DocsManager:
         self.config = config
         self.sitemap_cache: List[Dict[str, str]] = []
 
+    def _index_cache_path(self) -> Path:
+        """Filesystem location of the docs index cache.
+
+        Relative config values resolve under the user cache directory so the
+        server does not depend on the working directory.
+        """
+        p = Path(self.config.docs.cache_path)
+        return p if p.is_absolute() else cache_root() / p
+
     async def update_sitemap(self) -> None:
         """Update the sitemap cache from the remote sitemap."""
         sitemap_url = self.config.docs.sitemap_url
@@ -30,7 +39,7 @@ class DocsManager:
             response.raise_for_status()
 
             # Save to cache file
-            cache_path = Path(self.config.docs.cache_path)
+            cache_path = self._index_cache_path()
             cache_path.parent.mkdir(parents=True, exist_ok=True)
 
             async with aiofiles.open(cache_path, "w") as f:
@@ -49,7 +58,7 @@ class DocsManager:
                 if response.status_code == 200:
                     await self._parse_llms_txt(response.text)
                     # Cache it
-                    cache_path = Path(self.config.docs.cache_path).with_suffix(".txt")
+                    cache_path = self._index_cache_path().with_suffix(".txt")
                     cache_path.parent.mkdir(parents=True, exist_ok=True)
                     async with aiofiles.open(cache_path, "w") as f:
                         await f.write(response.text)
@@ -316,7 +325,7 @@ class DocsManager:
     async def search_docs(self, query: str, limit: int = 8) -> str:
         """Search documentation using lunr search against indexed content."""
         search_index_url = "https://docs.equinix.com/search-index.json"
-        cache_dir = Path("cache/search")
+        cache_dir = cache_root() / "search"
         cache_file = cache_dir / "search-index.json"
 
         # Ensure cache directory exists
@@ -367,7 +376,7 @@ class DocsManager:
 
     async def _load_cached_sitemap(self) -> None:
         """Load sitemap from cache file if available."""
-        cache_path = Path(self.config.docs.cache_path)
+        cache_path = self._index_cache_path()
 
         if cache_path.exists():
             async with aiofiles.open(cache_path, "r") as f:
@@ -380,7 +389,7 @@ class DocsManager:
     async def _load_cached_index(self) -> None:
         """Load index from cache (llms.txt or sitemap)."""
         # Try llms.txt cache first
-        llms_cache = Path(self.config.docs.cache_path).with_suffix(".txt")
+        llms_cache = self._index_cache_path().with_suffix(".txt")
         if llms_cache.exists():
             async with aiofiles.open(llms_cache, "r") as f:
                 content = await f.read()
@@ -445,7 +454,7 @@ class DocsManager:
             result.append(f"- **{category}**: {count} documents")
 
         result.append(
-            f"\nLast updated: {Path(self.config.docs.cache_path).stat().st_mtime if Path(self.config.docs.cache_path).exists() else 'Never'}"
+            f"\nLast updated: {self._index_cache_path().stat().st_mtime if self._index_cache_path().exists() else 'Never'}"
         )
 
         return "\n".join(result)

@@ -12,7 +12,7 @@ from equinix_docs_mcp_server.spec_manager import SpecManager
 @pytest.fixture
 def config():
     """Load test configuration."""
-    return Config.load("config/apis.yaml")
+    return Config.load()
 
 
 @pytest.fixture
@@ -74,7 +74,7 @@ def test_overlay_files_exist(config):
             continue
         for spec in api_config.specs:
             if spec.overlay:
-                overlay_path = Path(spec.overlay)
+                overlay_path = config.resolve_path(spec.overlay)
                 assert (
                     overlay_path.exists()
                 ), f"Overlay file missing for {api_name}: {overlay_path}"

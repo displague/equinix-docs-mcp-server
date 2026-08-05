@@ -19,7 +19,7 @@ def test_extract_slugs_dedupes_and_sorts():
 
 
 def test_configured_slugs_maps_to_families():
-    config = Config.load("config/apis.yaml")
+    config = Config.load()
     slugs = configured_slugs(config)
     assert slugs.get("metalv1") == "metal"
     assert slugs.get("fabricv4") == "fabric"
@@ -27,7 +27,7 @@ def test_configured_slugs_maps_to_families():
 
 
 def test_propose_config_entries():
-    config = Config.load("config/apis.yaml")
+    config = Config.load()
     entries = [
         CatalogEntry(
             slug="fabricv4",

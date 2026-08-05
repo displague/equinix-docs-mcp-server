@@ -6,11 +6,34 @@ multiple spec sources (URL and an optional overlay) under a single API
 namespace.
 """
 
+import os
+from importlib import resources
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import platformdirs
 import yaml
 from pydantic import BaseModel, Field
+
+
+def default_config_path() -> Path:
+    """Path to the configuration bundled with the installed package."""
+    return Path(str(resources.files("equinix_docs_mcp_server"))) / (
+        "data/config/apis.yaml"
+    )
+
+
+def cache_root() -> Path:
+    """Directory for cached specs, docs indexes, and search indexes.
+
+    Defaults to the per-user cache directory so the server can run from any
+    working directory (e.g. installed via uvx). Override with the
+    EQUINIX_MCP_CACHE_DIR environment variable.
+    """
+    env = os.getenv("EQUINIX_MCP_CACHE_DIR")
+    if env:
+        return Path(env)
+    return Path(platformdirs.user_cache_dir("equinix-docs-mcp-server", appauthor=False))
 
 
 class SpecSource(BaseModel):
@@ -97,9 +120,38 @@ class Config(BaseModel):
         description="Configuration for Arazzo workflow specs (e.g., {'specs': ['path/to/workflows.yaml']})",
     )
 
+    @property
+    def base_dir(self) -> Path:
+        """Directory against which relative paths in the config resolve.
+
+        Relative overlay and Arazzo spec paths (e.g. "overlays/metal.yaml",
+        "config/workflows.yaml") are written relative to the directory that
+        CONTAINS the config directory, so when the config file sits in a
+        directory named "config" the base is one level up. This matches both
+        the packaged layout (data/config/apis.yaml -> data/) and a custom
+        config kept in its own directory.
+        """
+        if not self.config_path:
+            return Path(".")
+        parent = Path(self.config_path).resolve().parent
+        if parent.name == "config":
+            return parent.parent
+        return parent
+
+    def resolve_path(self, path: str) -> Path:
+        """Resolve a possibly-relative config path against base_dir."""
+        p = Path(path)
+        return p if p.is_absolute() else self.base_dir / p
+
     @classmethod
-    def load(cls, config_path: str) -> "Config":
-        """Load configuration from a YAML file."""
+    def load(cls, config_path: Optional[str] = None) -> "Config":
+        """Load configuration from a YAML file.
+
+        When config_path is omitted, the configuration bundled with the
+        package is used.
+        """
+        if config_path is None:
+            config_path = str(default_config_path())
         path = Path(config_path)
         if not path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")

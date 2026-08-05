@@ -17,7 +17,7 @@ import httpx
 import yaml
 from openapi_spec_validator import validate
 
-from .config import APIConfig, Config
+from .config import APIConfig, Config, cache_root
 from .openapi_overlays.overlay_manager import OverlayManager
 from .swagger2openapi.converter import Swagger2OpenAPIConverter
 
@@ -63,9 +63,9 @@ def _update_references(obj: Any) -> Any:
 class SpecManager:
     """Manages fetching, caching, and merging of OpenAPI specifications."""
 
-    def __init__(self, config: Config, cache_dir: str = "cache/specs"):
+    def __init__(self, config: Config, cache_dir: Optional[str] = None):
         self.config = config
-        self.cache_dir = Path(cache_dir)
+        self.cache_dir = Path(cache_dir) if cache_dir else cache_root() / "specs"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.overlay_manager = OverlayManager(config)
         # Spec URLs on docs.equinix.com move behind 301s as APIs are
@@ -238,8 +238,8 @@ class SpecManager:
 
         for spec_source in api_config.specs:
             if spec_source.overlay:
-                # Overlays are specified relative to the project root in config
-                overlay_path = Path(spec_source.overlay)
+                # Overlay paths resolve against the config's base directory
+                overlay_path = self.config.resolve_path(spec_source.overlay)
                 if overlay_path.exists():
                     with open(overlay_path, "r") as f:
                         overlay = yaml.safe_load(f)
