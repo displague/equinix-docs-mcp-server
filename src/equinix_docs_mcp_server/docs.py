@@ -65,17 +65,17 @@ class DocsManager:
         """Parse llms.txt content."""
         self.sitemap_cache = []
         current_category = "General"
-        
+
         for line in content.splitlines():
             line = line.strip()
             if not line:
                 continue
-                
+
             # Check for headers as categories
             if line.startswith("#"):
                 current_category = line.lstrip("#").strip()
                 continue
-                
+
             # Check for links: - [Title](url) - Description
             if line.startswith("-") and "[" in line and "](" in line:
                 try:
@@ -84,23 +84,30 @@ class DocsManager:
                     end_bracket = line.find("]")
                     start_paren = line.find("(", end_bracket)
                     end_paren = line.find(")", start_paren)
-                    
-                    if start_bracket != -1 and end_bracket != -1 and start_paren != -1 and end_paren != -1:
-                        title = line[start_bracket+1:end_bracket]
-                        url = line[start_paren+1:end_paren]
-                        
+
+                    if (
+                        start_bracket != -1
+                        and end_bracket != -1
+                        and start_paren != -1
+                        and end_paren != -1
+                    ):
+                        title = line[start_bracket + 1 : end_bracket]
+                        url = line[start_paren + 1 : end_paren]
+
                         # Extract description if present (after the link)
-                        description = line[end_paren+1:].strip(" -:")
-                        
-                        self.sitemap_cache.append({
-                            "url": url,
-                            "title": title,
-                            "category": current_category,
-                            "description": description,
-                            "lastmod": "",
-                            "changefreq": "",
-                            "priority": ""
-                        })
+                        description = line[end_paren + 1 :].strip(" -:")
+
+                        self.sitemap_cache.append(
+                            {
+                                "url": url,
+                                "title": title,
+                                "category": current_category,
+                                "description": description,
+                                "lastmod": "",
+                                "changefreq": "",
+                                "priority": "",
+                            }
+                        )
                 except Exception:
                     continue
 
@@ -237,7 +244,7 @@ class DocsManager:
         for category, docs in sorted(categories.items()):
             result.append(f"## {category}\n")
             for doc in docs[:10]:  # Limit to 10 per category
-                desc = f" - {doc['description']}" if doc.get('description') else ""
+                desc = f" - {doc['description']}" if doc.get("description") else ""
                 result.append(f"- **{doc['title']}**: {doc['url']}{desc}")
 
             if len(docs) > 10:
