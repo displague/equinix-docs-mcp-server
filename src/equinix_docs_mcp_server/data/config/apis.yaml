@@ -4,11 +4,6 @@ apis:
   metal:
     auth_type: "metal_token"
     service_name: "metal"
-    include:
-      - findPlans
-      - findMetros
-      - createDevice
-      - findProjects
     format:
       # Human-readable text format for plans - simplified and robust
       findPlans: |
@@ -48,9 +43,6 @@ apis:
   network-edge:
     auth_type: "client_credentials"
     service_name: "network-edge"
-    include:
-      # upstream renamed getMetrosUsingGET -> getMetros
-      - getMetros
     enabled: true
     format:
       # Human-readable metros listing with pagination
@@ -82,10 +74,6 @@ apis:
   fabric:
     auth_type: "client_credentials"
     service_name: "fabric"
-    include:
-      - searchConnections
-      - searchProviders
-      - getMetros
     format:
       # Human-readable connection summary
       searchConnections:
@@ -170,8 +158,6 @@ apis:
   # SmartView APIs
   smartview:
     service_name: "smartview"
-    include:
-      - getLocationHierarchy
     specs:
       # The former per-domain Smart View specs (environmentalv1/v2,
       # feed-subscriptionv2, hierarchyv1, ibx-assetsv1, powerv1,
