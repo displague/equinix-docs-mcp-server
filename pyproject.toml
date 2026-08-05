@@ -15,7 +15,6 @@ dependencies = [
     # `uvx --from git+...` fails to resolve the transitive ==4.0.0b1.
     "fastmcp-slim==4.0.0b1",
     "mcp-types",
-    "httpx>=0.25.0",
     "httpx2>=2.5.0",
     "pydantic>=2.0.0",
     "pyyaml>=6.0.0",

@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 import aiofiles
-import httpx
+import httpx2
 
 from .config import Config, cache_root
 from .lunr_search.search_client import Client as SearchClient
@@ -34,7 +34,7 @@ class DocsManager:
         """Update the sitemap cache from the remote sitemap."""
         sitemap_url = self.config.docs.sitemap_url
 
-        async with httpx.AsyncClient() as client:
+        async with httpx2.AsyncClient() as client:
             response = await client.get(sitemap_url)
             response.raise_for_status()
 
@@ -53,7 +53,7 @@ class DocsManager:
         # Try llms.txt first
         llms_txt_url = self.config.docs.llms_txt_url
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx2.AsyncClient() as client:
                 response = await client.get(llms_txt_url)
                 if response.status_code == 200:
                     await self._parse_llms_txt(response.text)
@@ -334,7 +334,7 @@ class DocsManager:
         # Check if we need to fetch the search index
         if not cache_file.exists():
             try:
-                async with httpx.AsyncClient() as client:
+                async with httpx2.AsyncClient() as client:
                     response = await client.get(search_index_url)
                     response.raise_for_status()
 
@@ -421,16 +421,16 @@ class DocsManager:
             url = f"https://docs.equinix.com/{url.lstrip('/')}"
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx2.AsyncClient() as client:
                 response = await client.get(url, timeout=30.0)
                 response.raise_for_status()
 
                 # Return the markdown content
                 return response.text
 
-        except httpx.HTTPStatusError as e:
+        except httpx2.HTTPStatusError as e:
             return f"Error fetching document: HTTP {e.response.status_code} - {url}\n\nThe document may not be available in markdown format."
-        except httpx.RequestError as e:
+        except httpx2.RequestError as e:
             return f"Error fetching document: {str(e)}\n\nURL: {url}"
         except Exception as e:
             return f"Unexpected error fetching document: {str(e)}\n\nURL: {url}"

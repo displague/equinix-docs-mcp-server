@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import httpx
+import httpx2
 import yaml
 from openapi_spec_validator import validate
 
@@ -70,7 +70,7 @@ class SpecManager:
         self.overlay_manager = OverlayManager(config)
         # Spec URLs on docs.equinix.com move behind 301s as APIs are
         # reorganized (e.g. the smartview family), so follow redirects.
-        self.http_client = httpx.AsyncClient(follow_redirects=True)
+        self.http_client = httpx2.AsyncClient(follow_redirects=True)
         self.converter = Swagger2OpenAPIConverter()
 
     async def update_specs(self) -> None:
@@ -217,7 +217,7 @@ class SpecManager:
             self.save_cached_spec(spec_key, spec)
             logger.info(f"Successfully fetched and validated spec from {url}")
             return spec
-        except httpx.HTTPStatusError as e:
+        except httpx2.HTTPStatusError as e:
             logger.error(f"HTTP error fetching spec from {url}: {e}")
         except yaml.YAMLError as e:
             logger.error(f"YAML parsing error for spec from {url}: {e}")

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import httpx
+import httpx2
 
 from .config import Config
 
@@ -44,13 +44,13 @@ def extract_slugs(html: str) -> List[str]:
     return sorted(set(_SLUG_PATTERN.findall(html)))
 
 
-async def _classify_slug(client: httpx.AsyncClient, slug: str) -> CatalogEntry:
+async def _classify_slug(client: httpx2.AsyncClient, slug: str) -> CatalogEntry:
     """Determine which spec flavor a catalog slug serves."""
     for filename, kind in (("openapi.yaml", "openapi"), ("asyncapi.yaml", "asyncapi")):
         url = f"{CATALOG_URL}/{slug}/{filename}"
         try:
             response = await client.head(url)
-        except httpx.HTTPError as e:
+        except httpx2.HTTPError as e:
             logger.debug(f"HEAD {url} failed: {e}")
             continue
         if response.status_code == 200:
@@ -68,7 +68,7 @@ async def discover_catalog_apis(
     catalog_url: str = CATALOG_URL,
 ) -> List[CatalogEntry]:
     """Scrape the catalog page and classify every listed API's spec."""
-    async with httpx.AsyncClient(
+    async with httpx2.AsyncClient(
         follow_redirects=True,
         timeout=30.0,
         headers={"User-Agent": BROWSER_USER_AGENT},
