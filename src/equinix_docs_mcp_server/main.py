@@ -266,7 +266,7 @@ class EquinixMCPServer:
 
         self.mcp.add_transform(
             BM25SearchTransform(
-                max_results=10,
+                max_results=15,
                 always_visible=DOCS_TOOL_NAMES,
             )
         )
@@ -364,6 +364,15 @@ class EquinixMCPServer:
     ),
 )
 @click.option(
+    "--write",
+    "write_discovered",
+    is_flag=True,
+    help=(
+        "With --discover-apis: append the proposed entries to the "
+        "configuration file instead of only printing them"
+    ),
+)
+@click.option(
     "--tool-catalog",
     type=click.Choice(["search", "code-mode", "full"], case_sensitive=False),
     default="search",
@@ -385,6 +394,7 @@ def main(
     config: Optional[str],
     update_specs: bool,
     discover_apis: bool,
+    write_discovered: bool,
     tool_catalog: str,
     log_level: str,
 ) -> None:
@@ -397,10 +407,23 @@ def main(
         server = EquinixMCPServer(config, tool_catalog=tool_catalog.lower())
 
         if discover_apis:
-            from .catalog_discovery import discover_catalog_apis, propose_config_entries
+            from .catalog_discovery import (
+                apply_config_entries,
+                discover_catalog_apis,
+                propose_config_entries,
+            )
 
             entries = await discover_catalog_apis()
             click.echo(propose_config_entries(server.config, entries))
+            if write_discovered:
+                added = apply_config_entries(server.config, entries)
+                if added:
+                    click.echo(
+                        f"\nAdded {len(added)} new entries to "
+                        f"{server.config.config_path}: {', '.join(added)}"
+                    )
+                else:
+                    click.echo("\nNothing to write.")
             return
 
         if update_specs:

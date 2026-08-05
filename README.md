@@ -28,7 +28,7 @@ To find catalog APIs not yet configured, run:
 equinix-docs-mcp-server --discover-apis
 ```
 
-This scans [docs.equinix.com/api-catalog](https://docs.equinix.com/api-catalog) for `openapi.yaml` specs and prints ready-to-paste `apis.yaml` entries for anything new (AsyncAPI-only entries such as `emgv1` are reported but skipped). Operations missing an `operationId` get one synthesized automatically during spec processing.
+This scans [docs.equinix.com/api-catalog](https://docs.equinix.com/api-catalog) for `openapi.yaml` specs and prints ready-to-paste `apis.yaml` entries for anything new (AsyncAPI-only entries such as `emgv1` are reported but skipped). Add `--write` to append them to the configuration file directly — the *Discover New APIs* GitHub workflow does exactly that on a weekly schedule (or on demand via workflow dispatch) and opens a PR with the additions. Operations missing an `operationId` get one synthesized automatically during spec processing.
 
 ## Quick Start
 

@@ -11,6 +11,7 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import httpx
@@ -93,16 +94,21 @@ def configured_slugs(config: Config) -> Dict[str, str]:
     return slugs
 
 
-def propose_config_entries(config: Config, entries: List[CatalogEntry]) -> str:
-    """Render a report plus ready-to-paste apis.yaml entries for new APIs.
+def _classify_entries(
+    config: Config, entries: List[CatalogEntry]
+) -> tuple[List[str], List[tuple[str, str]]]:
+    """Classify catalog entries against the config.
 
-    Only OpenAPI entries are proposed (AsyncAPI cannot back an OpenAPI
-    provider). Proposals default to client_credentials auth; adjust per API
-    as needed.
+    Returns (report lines, proposals) where each proposal is a
+    (family name, apis.yaml block) pair for a newly discovered OpenAPI spec.
+    Family names are the slug minus its version suffix, falling back to the
+    full slug when that would collide with an existing or proposed family
+    (e.g. billingv1 alongside a configured billing family from billingv2).
     """
     known = configured_slugs(config)
+    used_families = set(config.apis)
     lines: List[str] = []
-    proposals: List[str] = []
+    proposals: List[tuple[str, str]] = []
 
     for entry in entries:
         if entry.slug in known:
@@ -114,23 +120,77 @@ def propose_config_entries(config: Config, entries: List[CatalogEntry]) -> str:
         elif entry.redirected_to:
             status = f"skipped: redirects to {entry.redirected_to}"
         else:
-            status = "NEW"
             family = re.sub(r"v\d+$", "", entry.slug)
+            if family in used_families:
+                family = entry.slug
+            used_families.add(family)
+            status = f"NEW (family: {family})"
             proposals.append(
-                f"  {family}:\n"
-                f'    auth_type: "client_credentials"\n'
-                f'    service_name: "{family}"\n'
-                f"    specs:\n"
-                f'      - url: "{entry.spec_url}"\n'
+                (
+                    family,
+                    f"  {family}:\n"
+                    f'    auth_type: "client_credentials"\n'
+                    f'    service_name: "{family}"\n'
+                    f"    specs:\n"
+                    f'      - url: "{entry.spec_url}"\n',
+                )
             )
         lines.append(f"  {entry.slug:<24} {status}")
+
+    return lines, proposals
+
+
+def propose_config_entries(config: Config, entries: List[CatalogEntry]) -> str:
+    """Render a report plus ready-to-paste apis.yaml entries for new APIs.
+
+    Only OpenAPI entries are proposed (AsyncAPI cannot back an OpenAPI
+    provider). Proposals default to client_credentials auth; adjust per API
+    as needed.
+    """
+    lines, proposals = _classify_entries(config, entries)
 
     report = "Discovered API catalog entries:\n" + "\n".join(lines)
     if proposals:
         report += (
             "\n\nProposed apis.yaml additions (review auth_type and consider"
-            " include filters or overlays before enabling):\n\n" + "\n".join(proposals)
+            " overlays or include/exclude filters before enabling):\n\n"
+            + "\n".join(block for _, block in proposals)
         )
     else:
         report += "\n\nNo new OpenAPI entries to propose."
     return report
+
+
+def apply_config_entries(config: Config, entries: List[CatalogEntry]) -> List[str]:
+    """Append newly discovered API families to the config file in place.
+
+    Inserts each proposed family block at the end of the `apis:` mapping
+    (immediately before the first other top-level section). Returns the
+    family names that were added.
+    """
+    _, proposals = _classify_entries(config, entries)
+    if not proposals:
+        return []
+    if not config.config_path:
+        raise ValueError("Config has no config_path to write to")
+
+    path = Path(config.config_path)
+    text = path.read_text(encoding="utf-8")
+
+    match = re.search(r"^(?:#[^\n]*\n)*(?:auth|docs|arazzo):", text, re.MULTILINE)
+    if not match:
+        raise ValueError(
+            f"Could not find the end of the apis section in {config.config_path}"
+        )
+
+    insertion = "".join(f"\n{block}" for _, block in proposals)
+    text = (
+        text[: match.start()].rstrip("\n")
+        + "\n"
+        + insertion
+        + "\n"
+        + text[match.start() :]
+    )
+    path.write_text(text, encoding="utf-8")
+
+    return [family for family, _ in proposals]

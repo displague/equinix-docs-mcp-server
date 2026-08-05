@@ -59,3 +59,52 @@ def test_propose_config_entries():
     # The one genuinely new OpenAPI entry is proposed with a versionless family
     assert "  orders:\n" in report
     assert 'url: "https://docs.equinix.com/api-catalog/ordersv2/openapi.yaml"' in report
+
+
+def test_apply_config_entries(tmp_path):
+    """New families are appended into the apis: section with collision-safe names."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    config_file = config_dir / "apis.yaml"
+    config_file.write_text(
+        "apis:\n"
+        "  billing:\n"
+        '    auth_type: "client_credentials"\n'
+        "    specs:\n"
+        '      - url: "https://docs.equinix.com/api-catalog/billingv2/openapi.yaml"\n'
+        "\n"
+        "# Authentication configuration\n"
+        "auth:\n"
+        "  client_credentials:\n"
+        '    token_url: "https://api.equinix.com/oauth2/v1/token"\n',
+        encoding="utf-8",
+    )
+    config = Config.load(str(config_file))
+
+    entries = [
+        CatalogEntry(
+            slug="billingv1",
+            spec_url="https://docs.equinix.com/api-catalog/billingv1/openapi.yaml",
+            kind="openapi",
+        ),
+        CatalogEntry(
+            slug="ordersv2",
+            spec_url="https://docs.equinix.com/api-catalog/ordersv2/openapi.yaml",
+            kind="openapi",
+        ),
+        CatalogEntry(slug="emgv1", kind="asyncapi"),
+    ]
+
+    from equinix_docs_mcp_server.catalog_discovery import apply_config_entries
+
+    added = apply_config_entries(config, entries)
+
+    # billingv1's versionless name collides with the existing billing family
+    assert added == ["billingv1", "orders"]
+
+    updated = Config.load(str(config_file))
+    assert set(updated.apis) == {"billing", "billingv1", "orders"}
+    assert updated.auth.client_credentials["token_url"]
+
+    # Re-running adds nothing
+    assert apply_config_entries(updated, entries) == []
