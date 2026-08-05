@@ -1,48 +1,141 @@
 """Tests for the main Equinix MCP Server implementation."""
 
-import asyncio
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx2
 import pytest
+from fastmcp import Client
+from fastmcp.tools.base import ToolResult
 
-from equinix_docs_mcp_server.config import Config
-from equinix_docs_mcp_server.main import AuthenticatedClient, EquinixMCPServer
+from equinix_docs_mcp_server.config import APIConfig, AuthConfig, Config, DocsConfig
+from equinix_docs_mcp_server.main import (
+    DOCS_TOOL_NAMES,
+    EquinixAuth,
+    EquinixMCPServer,
+    ResponseFormattingMiddleware,
+)
+
+TINY_METAL_SPEC = {
+    "openapi": "3.1.0",
+    "info": {"title": "Metal", "version": "1.0.0"},
+    "paths": {
+        "/metal/v1/plans": {
+            "get": {
+                "operationId": "findPlans",
+                "summary": "List all server plans available in Equinix Metal",
+                "responses": {"200": {"description": "ok"}},
+            }
+        }
+    },
+}
 
 
-class TestAuthenticatedClient:
-    """Test the AuthenticatedClient wrapper."""
+def make_config() -> Config:
+    """Build a minimal real Config without touching the filesystem."""
+    return Config(
+        apis={
+            "metal": APIConfig(
+                name="metal",
+                auth_type="metal_token",
+                enabled=True,
+            )
+        },
+        auth=AuthConfig(),
+        docs=DocsConfig(),
+    )
 
-    def test_get_service_from_url(self):
-        """Test service detection from URL."""
+
+def make_server(tool_catalog: str = "search") -> EquinixMCPServer:
+    """Build a server against the minimal config with spec IO stubbed out."""
+    with patch("equinix_docs_mcp_server.main.Config.load", return_value=make_config()):
+        server = EquinixMCPServer("test_config.yaml", tool_catalog=tool_catalog)
+    server.spec_manager.has_all_cached_specs = MagicMock(return_value=True)
+    server.spec_manager.get_provider_spec = MagicMock(return_value=TINY_METAL_SPEC)
+    return server
+
+
+class TestEquinixAuth:
+    """Test the per-family httpx auth hook."""
+
+    @pytest.mark.asyncio
+    async def test_injects_auth_headers(self):
         auth_manager = MagicMock()
-        response_formatter = MagicMock()
-        client = AuthenticatedClient(auth_manager, response_formatter)
+        auth_manager.get_auth_header = AsyncMock(
+            return_value={"X-Auth-Token": "token123"}
+        )
+        auth = EquinixAuth(auth_manager, "metal")
 
-        assert (
-            client._get_service_from_url("https://api.equinix.com/metal/v1/projects")
-            == "metal"
+        request = httpx2.Request("GET", "https://api.equinix.com/metal/v1/plans")
+        flow = auth.async_auth_flow(request)
+        sent = await anext(flow)
+
+        assert sent.headers["X-Auth-Token"] == "token123"
+        auth_manager.get_auth_header.assert_awaited_once_with("metal")
+
+    @pytest.mark.asyncio
+    async def test_auth_failure_sends_request_unauthenticated(self):
+        auth_manager = MagicMock()
+        auth_manager.get_auth_header = AsyncMock(side_effect=ValueError("no creds"))
+        auth = EquinixAuth(auth_manager, "metal")
+
+        request = httpx2.Request("GET", "https://api.equinix.com/metal/v1/plans")
+        sent = await anext(auth.async_auth_flow(request))
+
+        assert "X-Auth-Token" not in sent.headers
+
+
+class TestResponseFormattingMiddleware:
+    """Test JQ/YAML formatting of API tool results."""
+
+    def _context(self, tool_name: str) -> MagicMock:
+        context = MagicMock()
+        context.message.name = tool_name
+        return context
+
+    @pytest.mark.asyncio
+    async def test_api_tool_result_rendered_as_yaml(self):
+        formatter = MagicMock()
+        formatter.format_response = MagicMock(return_value={"plans": ["c3.small.x86"]})
+        middleware = ResponseFormattingMiddleware(formatter, ["metal"])
+
+        original = ToolResult(structured_content={"plans": ["c3.small.x86"]})
+        call_next = AsyncMock(return_value=original)
+
+        result = await middleware.on_call_tool(
+            self._context("metal_findPlans"), call_next
         )
-        assert (
-            client._get_service_from_url(
-                "https://api.equinix.com/fabric/v4/connections"
-            )
-            == "fabric"
+
+        formatter.format_response.assert_called_once()
+        assert "c3.small.x86" in result.content[0].text
+        assert result.structured_content == {"plans": ["c3.small.x86"]}
+
+    @pytest.mark.asyncio
+    async def test_non_api_tool_passes_through(self):
+        formatter = MagicMock()
+        middleware = ResponseFormattingMiddleware(formatter, ["metal"])
+
+        original = ToolResult(content="plain docs text")
+        call_next = AsyncMock(return_value=original)
+
+        result = await middleware.on_call_tool(self._context("search"), call_next)
+
+        assert result is original
+        formatter.format_response.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_error_result_passes_through(self):
+        formatter = MagicMock()
+        middleware = ResponseFormattingMiddleware(formatter, ["metal"])
+
+        original = ToolResult(content="boom", is_error=True)
+        call_next = AsyncMock(return_value=original)
+
+        result = await middleware.on_call_tool(
+            self._context("metal_findPlans"), call_next
         )
-        assert (
-            client._get_service_from_url(
-                "https://api.equinix.com/network-edge/api/v1/devices"
-            )
-            == "network-edge"
-        )
-        assert (
-            client._get_service_from_url("https://api.equinix.com/billing/v1/invoices")
-            == "billing"
-        )
-        assert (
-            client._get_service_from_url("https://api.equinix.com/other/v1/something")
-            == "unknown"
-        )
+
+        assert result is original
+        formatter.format_response.assert_not_called()
 
 
 class TestEquinixMCPServer:
@@ -63,75 +156,47 @@ class TestEquinixMCPServer:
             assert server.mcp is None  # Not initialized until initialize() is called
 
     @pytest.mark.asyncio
-    async def test_server_initialization_with_fastmcp(self):
-        """Test server initialization uses FastMCP.from_openapi."""
-        with patch(
-            "equinix_docs_mcp_server.main.Config.load"
-        ) as mock_config_load, patch(
-            "equinix_docs_mcp_server.main.SpecManager"
-        ) as mock_spec_mgr, patch(
-            "equinix_docs_mcp_server.main.AuthManager"
-        ) as mock_auth_mgr, patch(
-            "equinix_docs_mcp_server.main.DocsManager"
-        ) as mock_docs_mgr, patch(
-            "equinix_docs_mcp_server.main.FastMCP"
-        ) as mock_fastmcp_class:
+    async def test_search_catalog_hides_api_tools(self):
+        """Default catalog: only docs tools plus search_tools/call_tool are listed."""
+        server = make_server(tool_catalog="search")
+        await server.initialize()
 
-            # Setup mocks
-            mock_config = MagicMock()
-            mock_config_load.return_value = mock_config
+        async with Client(server.mcp) as client:
+            tools = await client.list_tools()
+            names = {tool.name for tool in tools}
 
-            mock_spec_instance = MagicMock()
-            mock_spec_instance.update_specs = AsyncMock()
-            mock_spec_instance.has_all_cached_specs = MagicMock(return_value=False)
-            mock_spec_instance.get_merged_spec = MagicMock(
-                return_value={
-                    "openapi": "3.0.3",
-                    "info": {"title": "Test", "version": "1.0.0"},
-                    "paths": {},
-                }
-            )
-            mock_spec_mgr.return_value = mock_spec_instance
+        assert names == {"search_tools", "call_tool", *DOCS_TOOL_NAMES}
 
-            mock_auth_instance = MagicMock()
-            mock_auth_mgr.return_value = mock_auth_instance
+    @pytest.mark.asyncio
+    async def test_search_tools_finds_api_operations(self):
+        """Hidden API tools are discoverable through search_tools."""
+        server = make_server(tool_catalog="search")
+        await server.initialize()
 
-            mock_docs_instance = MagicMock()
-            mock_docs_mgr.return_value = mock_docs_instance
+        async with Client(server.mcp) as client:
+            result = await client.call_tool("search_tools", {"query": "server plans"})
 
-            mock_mcp = MagicMock()
-            mock_mcp.tool = MagicMock()
-            mock_mcp.get_tools = AsyncMock(return_value={})
+        assert "metal_findPlans" in str(result)
 
-            # Create a different mock for the main FastMCP instance
-            mock_main_mcp = MagicMock()
+    @pytest.mark.asyncio
+    async def test_full_catalog_lists_namespaced_api_tools(self):
+        """With --tool-catalog full, provider tools appear with family prefixes."""
+        server = make_server(tool_catalog="full")
+        await server.initialize()
 
-            # Configure the FastMCP class mock to return different instances
-            mock_fastmcp_class.return_value = mock_main_mcp  # For FastMCP()
-            mock_fastmcp_class.from_openapi.return_value = (
-                mock_mcp  # For FastMCP.from_openapi()
-            )
+        async with Client(server.mcp) as client:
+            tools = await client.list_tools()
+            names = {tool.name for tool in tools}
 
-            # Test initialization - create server inside the patch context
-            server = EquinixMCPServer("test_config.yaml")
-            await server.initialize()
+        assert "metal_findPlans" in names
+        assert set(DOCS_TOOL_NAMES) <= names
 
-            # Verify FastMCP.from_openapi was called
-            mock_fastmcp_class.from_openapi.assert_called_once()
-            call_args = mock_fastmcp_class.from_openapi.call_args
+    @pytest.mark.asyncio
+    async def test_catalog_carries_public_cache_hints(self):
+        """tools/list responses advertise ttlMs/cacheScope per MCP 2026-07-28."""
+        server = make_server(tool_catalog="search")
+        await server.initialize()
 
-            # Check that it was called with the right parameters
-            assert "openapi_spec" in call_args[1]
-            assert "client" in call_args[1]
-            assert "name" in call_args[1]
-            assert call_args[1]["name"] == "Temp"
-
-            # Check that the client is an AuthenticatedClient
-            client_arg = call_args[1]["client"]
-            assert isinstance(client_arg, AuthenticatedClient)
-
-            # Verify server components were updated
-            mock_spec_instance.update_specs.assert_called_once()
-            mock_spec_instance.get_merged_spec.assert_called_once()
-
-            assert server.mcp == mock_main_mcp
+        hint = server.mcp._mcp_server.cache_hints["tools/list"]
+        assert hint.ttl_ms == 3600000
+        assert hint.scope == "public"

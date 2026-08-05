@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 try:
     import requests  # type: ignore
 except Exception:
-    requests = None
+    requests = None  # type: ignore[assignment]
 
 
 class SearchDocument:
@@ -89,7 +89,7 @@ class SearchIndex:
             else:
                 term = str(first)
 
-            refs = set()
+            refs: set = set()
             # collect refs from the remainder of the entry
             for part in entry[1:]:
                 _collect_refs(part, refs)

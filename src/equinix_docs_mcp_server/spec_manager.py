@@ -453,6 +453,20 @@ class SpecManager:
 
         return merged_spec
 
+    def get_provider_spec(self, api_name: str) -> Optional[Dict[str, Any]]:
+        """Load one API family's spec, ready for provider registration.
+
+        Applies the configured include/exclude operationId filters but leaves
+        operationIds and component schemas untouched: per-family namespacing
+        is handled at provider registration, not by rewriting the spec.
+        """
+        spec = self.load_merged_spec(api_name)
+        if not spec:
+            return None
+        if "paths" in spec:
+            spec["paths"] = self._filter_paths_by_operation_id(api_name, spec["paths"])
+        return spec
+
     def get_merged_spec_path(self, api_name: str) -> Path:
         """Get the path to the merged spec file."""
         return self.cache_dir / f"{api_name}-merged.yaml"
