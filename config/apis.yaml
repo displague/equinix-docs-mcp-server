@@ -173,13 +173,10 @@ apis:
     include:
       - getLocationHierarchy
     specs:
-      - url: "https://docs.equinix.com/api-catalog/environmentalv1/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/environmentalv2/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/feed-subscriptionv2/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/hierarchyv1/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/ibx-assetsv1/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/powerv1/openapi.yaml"
-      - url: "https://docs.equinix.com/api-catalog/system-alertsv2/openapi.yaml"
+      # The former per-domain Smart View specs (environmentalv1/v2,
+      # feed-subscriptionv2, hierarchyv1, ibx-assetsv1, powerv1,
+      # system-alertsv2) all redirect to this consolidated spec.
+      - url: "https://docs.equinix.com/api-catalog/smartviewv2/openapi.yaml"
 
   # Work Visit APIs
   workvisit:

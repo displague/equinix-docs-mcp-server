@@ -352,6 +352,14 @@ class EquinixMCPServer:
     help="Force update API specs from remote sources (otherwise uses cached specs)",
 )
 @click.option(
+    "--discover-apis",
+    is_flag=True,
+    help=(
+        "Scan docs.equinix.com/api-catalog for API specs not yet in the "
+        "configuration, print proposed apis.yaml entries, and exit"
+    ),
+)
+@click.option(
     "--tool-catalog",
     type=click.Choice(["search", "code-mode", "full"], case_sensitive=False),
     default="search",
@@ -369,7 +377,13 @@ class EquinixMCPServer:
     default="INFO",
     help="Set the logging level (default: INFO)",
 )
-def main(config: str, update_specs: bool, tool_catalog: str, log_level: str) -> None:
+def main(
+    config: str,
+    update_specs: bool,
+    discover_apis: bool,
+    tool_catalog: str,
+    log_level: str,
+) -> None:
     """Start the Equinix MCP Server."""
 
     # Configure logging based on the provided level
@@ -377,6 +391,13 @@ def main(config: str, update_specs: bool, tool_catalog: str, log_level: str) -> 
 
     async def _main() -> None:
         server = EquinixMCPServer(config, tool_catalog=tool_catalog.lower())
+
+        if discover_apis:
+            from .catalog_discovery import discover_catalog_apis, propose_config_entries
+
+            entries = await discover_catalog_apis()
+            click.echo(propose_config_entries(server.config, entries))
+            return
 
         if update_specs:
             await server.spec_manager.update_specs()
