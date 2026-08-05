@@ -3,11 +3,14 @@
 This project is an experimental Model Context Protocol (MCP) server, for local use and learning, that provides access to Equinix APIs and documentation. This project is not expected to offer high quality (production-ready) results. This is offered for developers learning about MCP, Equinix APIs and documentation, and their potential integration. 
 
 > [!NOTE]
-> The full list of Equinix API operationIds will overwhelm the context windows of local LLMs making this tool impractical for more than learning.
+> By default the API tool catalog is collapsed behind a `search_tools`/`call_tool` discovery pair (FastMCP's BM25 search transform), so large API catalogs no longer overwhelm the model's context window. Use `--tool-catalog full` to list every generated tool directly.
 
 ## Features
 
 - **API Access**: Fetches and caches Equinix API specifications then exposes operationIds as MCP tools.
+   - **Per-family providers**: Each API family (Metal, Fabric, Network Edge, Billing, Smart View) is served by its own OpenAPI provider; tools are namespaced `<family>_<operationId>` (e.g. `metal_findPlans`)
+   - **Searchable catalog**: API tools are hidden from `tools/list` and discovered on demand via `search_tools`, following the MCP 2026-07-28 progressive-discovery guidance; `--tool-catalog code-mode` enables FastMCP's experimental sandboxed code execution instead
+   - **Cache hints**: `tools/list` and related results carry `ttlMs`/`cacheScope` hints per the MCP 2026-07-28 caching utility
    - **API Authentication**: Supports both OAuth2 Client Credentials used by most API services and Metal API tokens
    - **Configurable Overlays**: Use overlay specifications to normalize API responses before LLM processing
    - **Arazzo Workflows (Experimental)**: Define and execute higher-level workflows chaining multiple API operations
@@ -151,7 +154,9 @@ Overlay files in the `overlays/` directory normalize API specifications before p
 
 The server exposes MCP tools for:
 
-1. **API Operations**: Dynamic tools generated from individual API specifications
+1. **API Operations**: Dynamic tools generated per API family from its OpenAPI specification, named `<family>_<operationId>` (e.g. `metal_findPlans`, `network-edge_getMetros`). With the default `--tool-catalog search`, these are hidden from `tools/list` and reached through:
+   - `search_tools` - Find API tools by natural-language query (returns full schemas)
+   - `call_tool` - Execute a discovered tool by name
 2. **Documentation**: 
    - `search` - Full-text search documentation using indexed content (OpenAI MCP compatible)
    - `fetch` - Fetch full markdown content of a documentation page by URL (OpenAI MCP compatible)
