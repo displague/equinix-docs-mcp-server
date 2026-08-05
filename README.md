@@ -20,7 +20,7 @@ This project is an experimental Model Context Protocol (MCP) server, for local u
 ## Supported APIs
 
 Any Equinix API specification can be added to the configuration file but operations may need to be filtered and overlays may be needed for this tool to use the spec in the MCP server.
-The `config/apis.yaml` file defines API specifications that have been used during development to test behavior.
+The bundled `apis.yaml` (at `src/equinix_docs_mcp_server/data/config/apis.yaml`) defines API specifications that have been used during development to test behavior; pass `--config` to use your own.
 
 To find catalog APIs not yet configured, run:
 
@@ -34,51 +34,63 @@ This scans [docs.equinix.com/api-catalog](https://docs.equinix.com/api-catalog) 
 
 ### Installation
 
-Requires Python 3.13 or later.
+No clone or checkout is required. With [uv](https://docs.astral.sh/uv/getting-started/installation/) installed, run the server directly from GitHub (uv fetches a suitable Python automatically):
+
+```bash
+uvx --from git+https://github.com/equinix-labs/equinix-docs-mcp-server equinix-docs-mcp-server
+```
+
+The bundled API/docs configuration ships inside the package, and caches are written to your user cache directory (override with the `EQUINIX_MCP_CACHE_DIR` environment variable). Pass `--config path/to/apis.yaml` to use a custom configuration.
+
+Equivalent alternatives: `pipx run --spec git+https://github.com/equinix-labs/equinix-docs-mcp-server equinix-docs-mcp-server`, or `pip install git+https://github.com/equinix-labs/equinix-docs-mcp-server` (Python 3.13+) followed by `equinix-docs-mcp-server`.
+
+### Developer installation
+
+To work on this project, clone it and install editable:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install -e .
+pip install -e .[dev]
 ```
 
-(Or with [uv](https://docs.astral.sh/uv/): `uv venv && uv pip install -e .`)
-
-This installs the `equinix-docs-mcp-server` console script into the virtual environment. The server reads `config/apis.yaml` and writes its `cache/` directory relative to the working directory, so run it (or configure your MCP client to run it) from the repository root.
+The packaged configuration lives at `src/equinix_docs_mcp_server/data/config/apis.yaml` (with overlays alongside in `data/overlays/`), so with an editable install your edits there take effect directly.
 
 ## Adding the MCP Server to Claude Code
-
-From the repository root:
 
 ```bash
 claude mcp add --env EQUINIX_CLIENT_ID=your_client_id \
   --env EQUINIX_CLIENT_SECRET=your_client_secret \
   --env EQUINIX_METAL_TOKEN=your_metal_token \
-  --transport stdio equinix -- .venv/bin/python -m equinix_docs_mcp_server.main
+  --transport stdio equinix \
+  -- uvx --from git+https://github.com/equinix-labs/equinix-docs-mcp-server equinix-docs-mcp-server
 ```
 
-On Windows use `.venv\Scripts\python.exe`. Add `--scope project` to share the configuration with the team via a `.mcp.json` file (omit the `--env` flags in that case and export the credentials in your shell instead, so secrets stay out of the committed file). Note the flag ordering: another option (here `--transport stdio`) must sit between the last `--env` and the server name, or the CLI parses the name as another KEY=value pair.
+Add `--scope project` to share the configuration with the team via a `.mcp.json` file (omit the `--env` flags in that case and export the credentials in your shell instead, so secrets stay out of the committed file). Note the flag ordering: another option (here `--transport stdio`) must sit between the last `--env` and the server name, or the CLI parses the name as another KEY=value pair.
 
 For more details, see the [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
 
 ## Adding the MCP Server to VS Code
 
-After cloning and installing, add the server with a single command from the repository root (the JSON is one server object, with the name inline):
+Add the server with a single command (the JSON is one server object, with the name inline):
 
 ```bash
-code --add-mcp '{"name":"equinix","type":"stdio","command":"'$PWD'/.venv/bin/python","args":["-m","equinix_docs_mcp_server.main"],"cwd":"'$PWD'"}'
+code --add-mcp '{"name":"equinix","type":"stdio","command":"uvx","args":["--from","git+https://github.com/equinix-labs/equinix-docs-mcp-server","equinix-docs-mcp-server"]}'
 ```
 
-Or create `.vscode/mcp.json` in the repository to prompt for credentials on first use:
+Or create a `.vscode/mcp.json` in your workspace to prompt for credentials on first use:
 
 ```json
 {
   "servers": {
     "equinix": {
       "type": "stdio",
-      "command": "${workspaceFolder}/.venv/bin/python",
-      "args": ["-m", "equinix_docs_mcp_server.main"],
-      "cwd": "${workspaceFolder}",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/equinix-labs/equinix-docs-mcp-server",
+        "equinix-docs-mcp-server"
+      ],
       "env": {
         "EQUINIX_CLIENT_ID": "${input:equinix-client-id}",
         "EQUINIX_CLIENT_SECRET": "${input:equinix-client-secret}",
@@ -136,7 +148,7 @@ equinix-docs-mcp-server --update-specs # --config path/to/custom/config.yaml
 
 ## Server Configuration
 
-The server is configured via `config/apis.yaml`. This file defines:
+The server is configured via the packaged `apis.yaml` (or a file passed with `--config`). This file defines:
 
 - API endpoints and versions
 - Authentication methods
@@ -192,7 +204,7 @@ The server exposes MCP tools for:
 
 ### Defining Arazzo Workflows (Experimental)
 
-Add an `arazzo` section to your `config/apis.yaml`:
+Add an `arazzo` section to your `apis.yaml` (spec paths resolve relative to the config file's parent directory):
 
 ```yaml
 arazzo:
