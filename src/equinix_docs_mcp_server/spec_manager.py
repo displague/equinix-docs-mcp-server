@@ -67,7 +67,9 @@ class SpecManager:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.overlay_manager = OverlayManager(config)
-        self.http_client = httpx.AsyncClient()
+        # Spec URLs on docs.equinix.com move behind 301s as APIs are
+        # reorganized (e.g. the smartview family), so follow redirects.
+        self.http_client = httpx.AsyncClient(follow_redirects=True)
         self.converter = Swagger2OpenAPIConverter()
 
     async def update_specs(self) -> None:

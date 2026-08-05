@@ -47,11 +47,12 @@ apis:
     auth_type: "client_credentials"
     service_name: "network-edge"
     include:
-      - getMetrosUsingGET
+      # upstream renamed getMetrosUsingGET -> getMetros
+      - getMetros
     enabled: true
     format:
       # Human-readable metros listing with pagination
-      getMetrosUsingGET:
+      getMetros:
         - |
           "**Network Edge Metros**\n\n" +
           (.data | map(
