@@ -1,7 +1,7 @@
 """Test documentation manager functionality."""
 
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -237,7 +237,9 @@ async def test_fetch_doc_success(mock_httpx, docs_manager):
     mock_httpx.return_value.__aexit__ = AsyncMock()
 
     # Test with full URL without .md extension
-    result = await docs_manager.fetch_doc("https://docs.equinix.com/metal/getting-started")
+    result = await docs_manager.fetch_doc(
+        "https://docs.equinix.com/metal/getting-started"
+    )
 
     # Should have called with .md extension
     mock_client.get.assert_called_once()
@@ -302,17 +304,20 @@ async def test_fetch_doc_relative_url(mock_httpx, docs_manager):
 async def test_fetch_doc_http_error(mock_httpx, docs_manager):
     """Test handling of HTTP errors when fetching documents."""
     # Mock HTTP error response
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.status_code = 404
     mock_error = httpx.HTTPStatusError(
-        "Not Found", request=AsyncMock(), response=mock_response
+        "Not Found", request=MagicMock(), response=mock_response
     )
-    mock_response.raise_for_status = AsyncMock(side_effect=mock_error)
+    # raise_for_status is synchronous in httpx; an AsyncMock here would only
+    # raise when awaited, which fetch_doc never does
+    mock_response.raise_for_status = MagicMock(side_effect=mock_error)
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_httpx.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_httpx.return_value.__aexit__ = AsyncMock()
+    # __aexit__ must return falsy, or the async-with suppresses the exception
+    mock_httpx.return_value.__aexit__ = AsyncMock(return_value=False)
 
     result = await docs_manager.fetch_doc("https://docs.equinix.com/nonexistent")
 
@@ -330,7 +335,8 @@ async def test_fetch_doc_request_error(mock_httpx, docs_manager):
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(side_effect=httpx.RequestError("Connection failed"))
     mock_httpx.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_httpx.return_value.__aexit__ = AsyncMock()
+    # __aexit__ must return falsy, or the async-with suppresses the exception
+    mock_httpx.return_value.__aexit__ = AsyncMock(return_value=False)
 
     result = await docs_manager.fetch_doc("https://docs.equinix.com/test")
 
