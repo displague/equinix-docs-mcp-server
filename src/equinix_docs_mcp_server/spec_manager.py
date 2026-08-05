@@ -9,6 +9,7 @@ specification.
 import asyncio
 import collections.abc
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -129,6 +130,13 @@ class SpecManager:
             return
 
         merged_spec = self._merge_api_spec(base_spec, api_config)
+
+        # Some specs (e.g. workvisit) omit operationIds; synthesize them so
+        # every operation can become a tool.
+        try:
+            self._apply_autogen_operation_ids(merged_spec)
+        except Exception as e:
+            logger.debug(f"Could not apply autogen operationIds: {e}")
 
         # Ensure configured security scheme exists BEFORE normalization,
         # so operations can reference the right scheme.
@@ -452,6 +460,73 @@ class SpecManager:
             merged_spec.pop("$defs", None)
 
         return merged_spec
+
+    def _apply_autogen_operation_ids(self, spec: Dict[str, Any]) -> None:
+        """Generate operationId values for operations that lack them.
+
+        Rules:
+        - GET on a path ending in a parameter -> get{CamelCase(basename)},
+          otherwise list{CamelCase(basename)}.
+        - Other methods -> {verb}{CamelCase(basename)}.
+        - Basename is the last non-parameter path segment
+          (e.g. /a/b/{id} -> b).
+        - Uniqueness is ensured by appending numeric suffixes.
+        """
+        paths = spec.get("paths")
+        if not isinstance(paths, dict):
+            return
+
+        def camel(s: str) -> str:
+            parts = re.split(r"[^A-Za-z0-9]+", s)
+            return "".join(p.capitalize() for p in parts if p)
+
+        def basename_and_param_flag(p: str) -> tuple[str, bool]:
+            segs = [seg for seg in p.split("/") if seg]
+            if not segs:
+                return ("Root", False)
+            last = segs[-1]
+            is_param = bool(re.match(r"^{.+}$", last))
+            if is_param:
+                base = segs[-2] if len(segs) >= 2 else "Root"
+            else:
+                base = last
+            return (base, is_param)
+
+        methods_allowed = {"get", "put", "post", "delete", "patch", "options", "head"}
+
+        existing = set()
+        for methods in paths.values():
+            if not isinstance(methods, dict):
+                continue
+            for op in methods.values():
+                if isinstance(op, dict) and op.get("operationId"):
+                    existing.add(op["operationId"])
+
+        for p, methods in paths.items():
+            if not isinstance(methods, dict):
+                continue
+            for method, op in methods.items():
+                if method.lower() not in methods_allowed or not isinstance(op, dict):
+                    continue
+                if op.get("operationId"):
+                    continue
+
+                base, ends_with_param = basename_and_param_flag(p)
+                if method.lower() == "get":
+                    candidate = (
+                        f"get{camel(base)}" if ends_with_param else f"list{camel(base)}"
+                    )
+                else:
+                    candidate = f"{method.lower()}{camel(base)}"
+
+                if candidate in existing:
+                    i = 2
+                    while f"{candidate}{i}" in existing:
+                        i += 1
+                    candidate = f"{candidate}{i}"
+
+                op["operationId"] = candidate
+                existing.add(candidate)
 
     def get_provider_spec(self, api_name: str) -> Optional[Dict[str, Any]]:
         """Load one API family's spec, ready for provider registration.

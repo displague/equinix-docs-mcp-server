@@ -78,3 +78,46 @@ def test_overlay_files_exist(config):
                 assert (
                     overlay_path.exists()
                 ), f"Overlay file missing for {api_name}: {overlay_path}"
+
+
+def test_apply_autogen_operation_ids(spec_manager):
+    """Operations lacking operationIds get deterministic generated names."""
+    spec = {
+        "paths": {
+            "/workvisits": {
+                "get": {"responses": {}},
+                "post": {"responses": {}},
+            },
+            "/workvisits/{id}": {
+                "get": {"responses": {}},
+                "delete": {"responses": {}},
+            },
+            "/keep": {
+                "get": {"operationId": "customName", "responses": {}},
+            },
+        }
+    }
+
+    spec_manager._apply_autogen_operation_ids(spec)
+
+    paths = spec["paths"]
+    assert paths["/workvisits"]["get"]["operationId"] == "listWorkvisits"
+    assert paths["/workvisits"]["post"]["operationId"] == "postWorkvisits"
+    assert paths["/workvisits/{id}"]["get"]["operationId"] == "getWorkvisits"
+    assert paths["/workvisits/{id}"]["delete"]["operationId"] == "deleteWorkvisits"
+    # Existing operationIds are untouched
+    assert paths["/keep"]["get"]["operationId"] == "customName"
+
+
+def test_apply_autogen_operation_ids_uniqueness(spec_manager):
+    """Generated names that collide with existing ones get numeric suffixes."""
+    spec = {
+        "paths": {
+            "/things": {"get": {"operationId": "listThings", "responses": {}}},
+            "/other/things": {"get": {"responses": {}}},
+        }
+    }
+
+    spec_manager._apply_autogen_operation_ids(spec)
+
+    assert spec["paths"]["/other/things"]["get"]["operationId"] == "listThings2"
