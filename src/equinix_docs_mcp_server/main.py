@@ -217,7 +217,7 @@ class EquinixMCPServer:
                 provider = OpenAPIProvider(
                     openapi_spec=spec,
                     client=self._build_api_client(api_config),
-                    tags={"equinix", api_name},
+                    tags={"equinix", api_name, *api_config.tags},
                 )
             except Exception as e:
                 logger.error(f"Failed to build provider for '{api_name}': {e}")

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from equinix_docs_mcp_server.config import Config
+from equinix_docs_mcp_server.config import APIConfig, Config
 from equinix_docs_mcp_server.spec_manager import SpecManager
 
 
@@ -172,3 +172,78 @@ def test_sanitize_schema_quirks(spec_manager):
     assert schemas["Lookbehind"]["pattern"] == "(?<=a)b(?<!c)"
     assert schemas["Bounded"] == {"type": "integer", "maximum": 10}
     assert schemas["BoundedFalse"] == {"type": "integer", "minimum": 1}
+
+
+def test_inject_family_context(spec_manager):
+    """Family context from the info block reaches every operation description."""
+    spec = {
+        "info": {"title": "Digital LOA API", "description": "Digital LOA API"},
+        "paths": {
+            "/orgs": {
+                "get": {"summary": "Marketplace organizations selection"},
+                "post": {"description": "Create an organization."},
+            },
+            "/bare": {"get": {}},
+        },
+    }
+    api_config = APIConfig(name="diloa")
+
+    spec_manager._inject_family_context(spec, "diloa", api_config)
+
+    context = "Part of the Equinix Digital LOA API family (diloa)."
+    ops = spec["paths"]
+    # Summary-only operations get a description built from the summary
+    assert ops["/orgs"]["get"]["description"] == (
+        f"Marketplace organizations selection\n\n{context}"
+    )
+    assert ops["/orgs"]["post"]["description"] == (
+        f"Create an organization.\n\n{context}"
+    )
+    assert ops["/bare"]["get"]["description"] == context
+
+    # Idempotent: a second pass adds nothing
+    spec_manager._inject_family_context(spec, "diloa", api_config)
+    assert ops["/bare"]["get"]["description"] == context
+
+
+def test_inject_family_context_config_override(spec_manager):
+    """An apis.yaml family description overrides the spec's info.description."""
+    spec = {
+        "info": {"title": "Digital LOA API", "description": "Digital LOA API"},
+        "paths": {"/orgs": {"get": {"summary": "List organizations"}}},
+    }
+    api_config = APIConfig(
+        name="diloa",
+        description="Digital Letter of Authorization (LOA) for cross connects.",
+    )
+
+    spec_manager._inject_family_context(spec, "diloa", api_config)
+
+    desc = spec["paths"]["/orgs"]["get"]["description"]
+    assert "Digital Letter of Authorization (LOA) for cross connects." in desc
+    assert desc.startswith("List organizations")
+
+
+def test_summarize_info_description():
+    """Long multi-line info descriptions collapse to a bounded single line."""
+    text = "First line\nof a very long description. " * 30
+    summary = SpecManager._summarize_info_description(text)
+    assert "\n" not in summary
+    assert len(summary) <= 301
+    assert summary.endswith("…")
+    # Short descriptions pass through collapsed but untruncated
+    assert SpecManager._summarize_info_description("a  b\nc") == "a b c"
+
+
+def test_config_family_search_metadata(config):
+    """The bundled config carries description/tags for opaque family slugs."""
+    diloa = config.get_api_config("diloa")
+    assert "Letter of Authorization" in (diloa.description or "")
+    assert "interconnection" in diloa.tags
+
+    sts = config.get_api_config("sts")
+    assert "Security Token Service" in (sts.description or "")
+
+    # Every family carries at least one grouping tag
+    for api_name in config.get_api_names():
+        assert config.get_api_config(api_name).tags, f"{api_name} has no tags"

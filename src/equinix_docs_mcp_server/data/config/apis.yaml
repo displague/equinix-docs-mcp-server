@@ -2,6 +2,8 @@
 apis:
   # Metal API - uses different auth (X-Auth-Token) and base path
   metal:
+    description: "Equinix Metal bare metal servers: provision and manage on-demand dedicated servers, IPs, and VLANs."
+    tags: [compute, bare-metal]
     auth_type: "metal_token"
     service_name: "metal"
     format:
@@ -41,6 +43,7 @@ apis:
 
   # Network Edge API
   network-edge:
+    tags: [network, virtual-devices]
     auth_type: "client_credentials"
     service_name: "network-edge"
     enabled: true
@@ -72,6 +75,7 @@ apis:
 
   # Fabric API
   fabric:
+    tags: [network, interconnection]
     auth_type: "client_credentials"
     service_name: "fabric"
     format:
@@ -150,6 +154,7 @@ apis:
 
   # Billing API
   billing:
+    tags: [billing]
     auth_type: "client_credentials"
     service_name: "billing"
     specs:
@@ -157,6 +162,7 @@ apis:
         overlay: "overlays/billing.yaml"
   # SmartView APIs
   smartview:
+    tags: [colocation, monitoring, power]
     service_name: "smartview"
     specs:
       # The former per-domain Smart View specs (environmentalv1/v2,
@@ -166,6 +172,8 @@ apis:
 
   # Work Visit APIs
   workvisit:
+    description: "Schedule and manage work visits (on-site access to Equinix IBX data centers)."
+    tags: [colocation, site-access]
     auth_type: "client_credentials"
     service_name: "workvisit"
     specs:
@@ -175,162 +183,201 @@ apis:
         overlay: "overlays/workvisitsv2.yaml"
 
   accesstoken:
+    description: "Obtain OAuth2 API access tokens (legacy Equinix API authentication)."
+    tags: [auth, identity]
     auth_type: "client_credentials"
     service_name: "accesstoken"
     specs:
       - url: "https://docs.equinix.com/api-catalog/accesstokenv1/openapi.yaml"
 
   access:
+    tags: [identity, permissions]
     auth_type: "client_credentials"
     service_name: "access"
     specs:
       - url: "https://docs.equinix.com/api-catalog/accessv1/openapi.yaml"
 
   assets:
+    tags: [colocation, assets]
     auth_type: "client_credentials"
     service_name: "assets"
     specs:
       - url: "https://docs.equinix.com/api-catalog/assetsv1/openapi.yaml"
 
   attachments:
+    tags: [portal, files]
     auth_type: "client_credentials"
     service_name: "attachments"
     specs:
       - url: "https://docs.equinix.com/api-catalog/attachmentsv1/openapi.yaml"
 
   bas:
+    description: "Billing Account Service (BAS): search and retrieve customer billing accounts."
+    tags: [billing]
     auth_type: "client_credentials"
     service_name: "bas"
     specs:
       - url: "https://docs.equinix.com/api-catalog/basv2/openapi.yaml"
 
   billingv1:
+    tags: [billing]
     auth_type: "client_credentials"
     service_name: "billingv1"
     specs:
       - url: "https://docs.equinix.com/api-catalog/billingv1/openapi.yaml"
 
   crossconnects:
+    description: "Order and manage physical cross connects between colocation deployments."
+    tags: [interconnection, colocation]
     auth_type: "client_credentials"
     service_name: "crossconnects"
     specs:
       - url: "https://docs.equinix.com/api-catalog/crossconnectsv2/openapi.yaml"
 
   diloa:
+    description: "Digital Letter of Authorization (LOA): authorize cross connect and interconnection provisioning."
+    tags: [interconnection, colocation]
     auth_type: "client_credentials"
     service_name: "diloa"
     specs:
       - url: "https://docs.equinix.com/api-catalog/diloav1/openapi.yaml"
 
   getprojects:
+    description: "Retrieve Equinix projects."
+    tags: [projects]
     auth_type: "client_credentials"
     service_name: "getprojects"
     specs:
       - url: "https://docs.equinix.com/api-catalog/getprojectsv2/openapi.yaml"
 
   internetaccess:
+    description: "Equinix Internet Access (EIA): order and manage dedicated internet service."
+    tags: [network, internet]
     auth_type: "client_credentials"
     service_name: "internetaccess"
     specs:
       - url: "https://docs.equinix.com/api-catalog/internetaccessv1/openapi.yaml"
 
   internetaccessv2:
+    description: "Equinix Internet Access (EIA): order and manage dedicated internet service."
+    tags: [network, internet]
     auth_type: "client_credentials"
     service_name: "internetaccessv2"
     specs:
       - url: "https://docs.equinix.com/api-catalog/internetaccessv2/openapi.yaml"
 
   lookup:
+    tags: [colocation, lookup]
     auth_type: "client_credentials"
     service_name: "lookup"
     specs:
       - url: "https://docs.equinix.com/api-catalog/lookupv2/openapi.yaml"
 
   notifications:
+    tags: [notifications]
     auth_type: "client_credentials"
     service_name: "notifications"
     specs:
       - url: "https://docs.equinix.com/api-catalog/notificationsv1/openapi.yaml"
 
   orderhistory:
+    tags: [ordering]
     auth_type: "client_credentials"
     service_name: "orderhistory"
     specs:
       - url: "https://docs.equinix.com/api-catalog/orderhistoryv1/openapi.yaml"
 
   orders:
+    tags: [ordering]
     auth_type: "client_credentials"
     service_name: "orders"
     specs:
       - url: "https://docs.equinix.com/api-catalog/ordersv2/openapi.yaml"
 
   quotes:
+    tags: [ordering]
     auth_type: "client_credentials"
     service_name: "quotes"
     specs:
       - url: "https://docs.equinix.com/api-catalog/quotesv2/openapi.yaml"
 
   reports:
+    tags: [reports]
     auth_type: "client_credentials"
     service_name: "reports"
     specs:
       - url: "https://docs.equinix.com/api-catalog/reportsv1/openapi.yaml"
 
   securecabinet:
+    description: "Order and manage Equinix Secure Cabinet colocation products."
+    tags: [colocation, ordering]
     auth_type: "client_credentials"
     service_name: "securecabinet"
     specs:
       - url: "https://docs.equinix.com/api-catalog/securecabinetv1/openapi.yaml"
 
   shipments:
+    description: "Manage inbound and outbound equipment shipments to Equinix IBX data centers."
+    tags: [colocation, shipments]
     auth_type: "client_credentials"
     service_name: "shipments"
     specs:
       - url: "https://docs.equinix.com/api-catalog/shipmentsv1/openapi.yaml"
 
   shipmentsv2:
+    description: "Manage inbound and outbound equipment shipments to Equinix IBX data centers."
+    tags: [colocation, shipments]
     auth_type: "client_credentials"
     service_name: "shipmentsv2"
     specs:
       - url: "https://docs.equinix.com/api-catalog/shipmentsv2/openapi.yaml"
 
   smarthands:
+    description: "Order Equinix Smart Hands remote 'hands and eyes' support tasks performed by on-site technicians."
+    tags: [support, ordering]
     auth_type: "client_credentials"
     service_name: "smarthands"
     specs:
       - url: "https://docs.equinix.com/api-catalog/smarthandsv1/openapi.yaml"
 
   sts:
+    description: "Security Token Service (STS): exchange OIDC ID tokens for Equinix access tokens."
+    tags: [auth, identity]
     auth_type: "client_credentials"
     service_name: "sts"
     specs:
       - url: "https://docs.equinix.com/api-catalog/stsv1/openapi.yaml"
 
   supportplans:
+    tags: [support]
     auth_type: "client_credentials"
     service_name: "supportplans"
     specs:
       - url: "https://docs.equinix.com/api-catalog/supportplansv2/openapi.yaml"
 
   support:
+    tags: [support]
     auth_type: "client_credentials"
     service_name: "support"
     specs:
       - url: "https://docs.equinix.com/api-catalog/supportv2/openapi.yaml"
 
   tickets:
+    tags: [support]
     auth_type: "client_credentials"
     service_name: "tickets"
     specs:
       - url: "https://docs.equinix.com/api-catalog/ticketsv2/openapi.yaml"
 
   troubleticket:
+    tags: [support]
     auth_type: "client_credentials"
     service_name: "troubleticket"
     specs:
       - url: "https://docs.equinix.com/api-catalog/troubleticketv1/openapi.yaml"
 
   unifiednotification:
+    tags: [notifications]
     auth_type: "client_credentials"
     service_name: "unifiednotification"
     specs:
