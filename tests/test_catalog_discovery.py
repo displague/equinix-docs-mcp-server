@@ -6,7 +6,23 @@ from equinix_docs_mcp_server.catalog_discovery import (
     extract_slugs,
     propose_config_entries,
 )
-from equinix_docs_mcp_server.config import Config
+from equinix_docs_mcp_server.config import APIConfig, Config, SpecSource
+
+
+def make_config() -> Config:
+    """A minimal config with one family, independent of the packaged file."""
+    return Config(
+        apis={
+            "fabric": APIConfig(
+                name="fabric",
+                specs=[
+                    SpecSource(
+                        url="https://docs.equinix.com/api-catalog/fabricv4/openapi.yaml"
+                    )
+                ],
+            )
+        }
+    )
 
 
 def test_extract_slugs_dedupes_and_sorts():
@@ -27,7 +43,7 @@ def test_configured_slugs_maps_to_families():
 
 
 def test_propose_config_entries():
-    config = Config.load()
+    config = make_config()
     entries = [
         CatalogEntry(
             slug="fabricv4",

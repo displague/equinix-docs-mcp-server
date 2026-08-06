@@ -174,6 +174,168 @@ apis:
       - url: "https://docs.equinix.com/api-catalog/workvisitsv2/openapi.yaml"
         overlay: "overlays/workvisitsv2.yaml"
 
+  accesstoken:
+    auth_type: "client_credentials"
+    service_name: "accesstoken"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/accesstokenv1/openapi.yaml"
+
+  access:
+    auth_type: "client_credentials"
+    service_name: "access"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/accessv1/openapi.yaml"
+
+  assets:
+    auth_type: "client_credentials"
+    service_name: "assets"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/assetsv1/openapi.yaml"
+
+  attachments:
+    auth_type: "client_credentials"
+    service_name: "attachments"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/attachmentsv1/openapi.yaml"
+
+  bas:
+    auth_type: "client_credentials"
+    service_name: "bas"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/basv2/openapi.yaml"
+
+  billingv1:
+    auth_type: "client_credentials"
+    service_name: "billingv1"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/billingv1/openapi.yaml"
+
+  crossconnects:
+    auth_type: "client_credentials"
+    service_name: "crossconnects"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/crossconnectsv2/openapi.yaml"
+
+  diloa:
+    auth_type: "client_credentials"
+    service_name: "diloa"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/diloav1/openapi.yaml"
+
+  getprojects:
+    auth_type: "client_credentials"
+    service_name: "getprojects"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/getprojectsv2/openapi.yaml"
+
+  internetaccess:
+    auth_type: "client_credentials"
+    service_name: "internetaccess"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/internetaccessv1/openapi.yaml"
+
+  internetaccessv2:
+    auth_type: "client_credentials"
+    service_name: "internetaccessv2"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/internetaccessv2/openapi.yaml"
+
+  lookup:
+    auth_type: "client_credentials"
+    service_name: "lookup"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/lookupv2/openapi.yaml"
+
+  notifications:
+    auth_type: "client_credentials"
+    service_name: "notifications"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/notificationsv1/openapi.yaml"
+
+  orderhistory:
+    auth_type: "client_credentials"
+    service_name: "orderhistory"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/orderhistoryv1/openapi.yaml"
+
+  orders:
+    auth_type: "client_credentials"
+    service_name: "orders"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/ordersv2/openapi.yaml"
+
+  quotes:
+    auth_type: "client_credentials"
+    service_name: "quotes"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/quotesv2/openapi.yaml"
+
+  reports:
+    auth_type: "client_credentials"
+    service_name: "reports"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/reportsv1/openapi.yaml"
+
+  securecabinet:
+    auth_type: "client_credentials"
+    service_name: "securecabinet"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/securecabinetv1/openapi.yaml"
+
+  shipments:
+    auth_type: "client_credentials"
+    service_name: "shipments"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/shipmentsv1/openapi.yaml"
+
+  shipmentsv2:
+    auth_type: "client_credentials"
+    service_name: "shipmentsv2"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/shipmentsv2/openapi.yaml"
+
+  smarthands:
+    auth_type: "client_credentials"
+    service_name: "smarthands"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/smarthandsv1/openapi.yaml"
+
+  sts:
+    auth_type: "client_credentials"
+    service_name: "sts"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/stsv1/openapi.yaml"
+
+  supportplans:
+    auth_type: "client_credentials"
+    service_name: "supportplans"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/supportplansv2/openapi.yaml"
+
+  support:
+    auth_type: "client_credentials"
+    service_name: "support"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/supportv2/openapi.yaml"
+
+  tickets:
+    auth_type: "client_credentials"
+    service_name: "tickets"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/ticketsv2/openapi.yaml"
+
+  troubleticket:
+    auth_type: "client_credentials"
+    service_name: "troubleticket"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/troubleticketv1/openapi.yaml"
+
+  unifiednotification:
+    auth_type: "client_credentials"
+    service_name: "unifiednotification"
+    specs:
+      - url: "https://docs.equinix.com/api-catalog/unifiednotificationv2/openapi.yaml"
+
 # Authentication configuration
 auth:
   # Client Credentials flow for most APIs

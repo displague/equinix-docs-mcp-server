@@ -1,10 +1,15 @@
 """Test fixtures and configuration."""
 
 import os
+import sys
 import tempfile
 from pathlib import Path
 
 import pytest
+
+# Test this checkout's sources: an editable install in a shared venv points
+# at whichever worktree ran `pip install -e .`, so prepend the local src.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 
 @pytest.fixture(scope="session", autouse=True)
