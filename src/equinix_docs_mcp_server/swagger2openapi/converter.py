@@ -70,11 +70,11 @@ class Swagger2OpenAPIConverter:
     def _rewrite_ref(self, ref):
         """Rewrites a Swagger $ref to an OpenAPI $ref."""
         if ref.startswith("#/definitions/"):
-            return f"#/components/schemas/{ref[len('#/definitions/'):]}"
+            return f"#/components/schemas/{ref[len('#/definitions/') :]}"
         if ref.startswith("#/parameters/"):
-            return f"#/components/parameters/{ref[len('#/parameters/'):]}"
+            return f"#/components/parameters/{ref[len('#/parameters/') :]}"
         if ref.startswith("#/responses/"):
-            return f"#/components/responses/{ref[len('#/responses/'):]}"
+            return f"#/components/responses/{ref[len('#/responses/') :]}"
         return ref
 
     def _fixup_refs(self, obj):

@@ -198,7 +198,16 @@ class SpecManager:
 
         self.save_merged_spec(api_name, merged_spec)
 
-    _HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
+    _HTTP_METHODS = (
+        "get",
+        "put",
+        "post",
+        "delete",
+        "options",
+        "head",
+        "patch",
+        "trace",
+    )
 
     def _inject_family_context(
         self, spec: Dict[str, Any], api_name: str, api_config: APIConfig
