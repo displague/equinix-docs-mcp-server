@@ -62,6 +62,17 @@ class APIConfig(BaseModel):
         default=None, description="Service name (used for path normalization)"
     )
     enabled: bool = Field(default=True, description="Enable/disable this API")
+    description: Optional[str] = Field(
+        default=None,
+        description="Human-readable summary of this API family; appended to "
+        "every generated tool description so catalog search can match tools "
+        "by product name. Overrides the spec's info title/description.",
+    )
+    tags: List[str] = Field(
+        default_factory=list,
+        description="Extra tags applied to this family's tools (in addition "
+        "to 'equinix' and the family name); aids code-mode tag browsing",
+    )
     include: List[str] = Field(
         default_factory=list,
         description="Regex patterns of operationIds to include (after prefix)",
@@ -189,6 +200,8 @@ class Config(BaseModel):
                     "auth_type": api_data.get("auth_type"),
                     "service_name": api_data.get("service_name"),
                     "enabled": api_data.get("enabled", True),
+                    "description": api_data.get("description"),
+                    "tags": api_data.get("tags", []) or [],
                     "include": api_data.get("include", []) or [],
                     "exclude": api_data.get("exclude", []) or [],
                     "format": api_data.get("format", {}) or {},

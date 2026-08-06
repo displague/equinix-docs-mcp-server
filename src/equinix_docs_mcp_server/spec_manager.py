@@ -142,6 +142,11 @@ class SpecManager:
         # unparseable (found across the api-catalog by scripts/vet_specs.py).
         self._sanitize_schema_quirks(merged_spec)
 
+        # Catalog search transforms only index per-tool text (name,
+        # description, parameters), so family-level context from info.title
+        # would otherwise be invisible to search.
+        self._inject_family_context(merged_spec, api_name, api_config)
+
         # Ensure configured security scheme exists BEFORE normalization,
         # so operations can reference the right scheme.
         merged_spec.setdefault("components", {})
@@ -192,6 +197,68 @@ class SpecManager:
                 merged_spec["security"] = [{"MetalToken": []}]
 
         self.save_merged_spec(api_name, merged_spec)
+
+    _HTTP_METHODS = (
+        "get",
+        "put",
+        "post",
+        "delete",
+        "options",
+        "head",
+        "patch",
+        "trace",
+    )
+
+    def _inject_family_context(
+        self, spec: Dict[str, Any], api_name: str, api_config: APIConfig
+    ) -> None:
+        """Append family-level context to every operation description.
+
+        FastMCP derives each tool's description from the operation's
+        description (falling back to summary), and the catalog search
+        transforms index only that per-tool text. The spec's info block —
+        often the best statement of what the API family does (e.g. the
+        "diloa" family is titled "Digital LOA API") — never reaches the
+        index unless it is folded into each operation.
+        """
+        info = spec.get("info") or {}
+        title = str(info.get("title") or "").strip()
+        family_desc = (api_config.description or "").strip()
+        if not family_desc:
+            family_desc = self._summarize_info_description(
+                str(info.get("description") or "")
+            )
+
+        label = re.sub(r"\s+APIs?$", "", title) or api_name
+        parts = [f"Part of the Equinix {label} API family ({api_name})."]
+        if family_desc and family_desc.rstrip(".") != title.rstrip("."):
+            parts.append(family_desc.rstrip(".") + ".")
+        context = " ".join(parts)
+
+        for path_item in (spec.get("paths") or {}).values():
+            if not isinstance(path_item, dict):
+                continue
+            for method in self._HTTP_METHODS:
+                operation = path_item.get(method)
+                if not isinstance(operation, dict):
+                    continue
+                existing = str(
+                    operation.get("description") or operation.get("summary") or ""
+                ).strip()
+                if context in existing:
+                    continue
+                operation["description"] = (
+                    f"{existing}\n\n{context}" if existing else context
+                )
+
+    @staticmethod
+    def _summarize_info_description(text: str, max_len: int = 300) -> str:
+        """Collapse an info.description to a short single-line summary."""
+        collapsed = " ".join(text.split())
+        if len(collapsed) <= max_len:
+            return collapsed
+        cut = collapsed[:max_len].rsplit(" ", 1)[0]
+        return cut + "…"
 
     async def _fetch_and_cache_spec(
         self, spec_key: str, url: str

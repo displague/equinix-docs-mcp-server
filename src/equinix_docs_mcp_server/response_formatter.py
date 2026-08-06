@@ -50,7 +50,7 @@ class ResponseFormatter:
 
         for i, jq_filter in enumerate(filters):
             try:
-                logger.debug(f"Applying JQ filter {i+1}/{len(filters)}: {jq_filter}")
+                logger.debug(f"Applying JQ filter {i + 1}/{len(filters)}: {jq_filter}")
                 program = self._get_jq_program(jq_filter)
                 if program is None:
                     logger.warning(f"JQ program is None for filter: {jq_filter}")
@@ -71,7 +71,7 @@ class ResponseFormatter:
                     logger.debug(f"Using raw result: {type(result)}")
 
                 logger.debug(
-                    f"After filter {i+1}, result type: {type(result)}, value: {repr(result)[:200] if result else 'None'}"
+                    f"After filter {i + 1}, result type: {type(result)}, value: {repr(result)[:200] if result else 'None'}"
                 )
 
             except Exception as e:
